@@ -26,6 +26,8 @@ export default function NewCustomerPage() {
     currency_code: "INR",
     payment_terms: "15",
     enable_portal: false,
+    registration_no: "",
+    remarks: "",
     billing_address: {
       attention: "",
       country: "",
@@ -549,7 +551,40 @@ export default function NewCustomerPage() {
                 </div>
               )}
 
-              {["contact_persons", "custom", "tags", "remarks"].includes(activeTab) && (
+              {activeTab === "custom" && (
+                <div className="max-w-2xl space-y-6">
+                  <div className="flex items-center">
+                    <label className="w-48 text-sm font-medium text-gray-700 flex items-center gap-1">
+                      <span className="text-red-500">*</span> Registration No
+                    </label>
+                    <input
+                      type="text"
+                      name="registration_no"
+                      value={form.registration_no}
+                      onChange={handleChange}
+                      required
+                      className="flex-1 max-w-sm bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 focus:outline-none focus:border-blue-500 transition-colors"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {activeTab === "remarks" && (
+                <div className="max-w-2xl space-y-6">
+                  <div className="flex items-start">
+                    <label className="w-48 text-sm font-medium text-gray-700 mt-2">Remarks</label>
+                    <textarea
+                      name="remarks"
+                      value={form.remarks}
+                      onChange={handleChange}
+                      rows="4"
+                      className="flex-1 max-w-sm bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 focus:outline-none focus:border-blue-500 transition-colors resize-none"
+                    ></textarea>
+                  </div>
+                </div>
+              )}
+
+              {["contact_persons", "tags"].includes(activeTab) && (
                 <div className="py-12 flex flex-col items-center justify-center text-center">
                   <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4">
                     <Info size={24} className="text-gray-400" />

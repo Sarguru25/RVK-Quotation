@@ -49,7 +49,7 @@ export async function PUT(req, context) {
       if (item.item_id) payloadItem.item_id = item.item_id;
       if (item.line_item_id) payloadItem.line_item_id = item.line_item_id;
       if (item.description) payloadItem.description = item.description;
-      if (item.tax_id) payloadItem.tax_id = item.tax_id;
+      payloadItem.tax_id = item.tax_id || "";
       return payloadItem;
     });
 
@@ -62,7 +62,7 @@ export async function PUT(req, context) {
       subject_content: body.subject,
       notes: body.notes,
       terms: body.terms,
-      discount: `${Number(body.discount_percent) || 0}%`,
+      discount: body.discount_type === "amount" ? (Number(body.discount_value) || 0) : `${Number(body.discount_value) || 0}%`,
       discount_type: "entity_level",
       is_discount_before_tax: true,
       shipping_charge: Number(body.shipping_charges) || 0,

@@ -43,13 +43,19 @@ export async function POST(req) {
       salutation: body.salutation,
       first_name: body.first_name,
       last_name: body.last_name,
-      pan_no: body.pan_no,
+      notes: body.remarks || "",
       language_code: body.language_code || "en",
       currency_code: body.currency_code || "INR",
       payment_terms: parseInt(body.payment_terms) || 15,
       payment_terms_label: body.payment_terms == "15" ? "Due on Receipt" : `Net ${body.payment_terms}`,
       billing_address: body.billing_address,
       shipping_address: body.shipping_address,
+      custom_fields: [
+        {
+          customfield_id: "2315070000000071093",
+          value: body.registration_no || ""
+        }
+      ]
     };
 
     const data = await createCustomer(customerPayload);

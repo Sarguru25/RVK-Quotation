@@ -132,11 +132,19 @@ export default async function QuoteDetailsPage({ params }) {
       <div className="bg-white w-full max-w-4xl shadow-xl border relative overflow-hidden print:shadow-none print:border-none print:p-0 mb-6">
 
         {quote.status && (
-          <div className="absolute top-0 left-0 w-32 h-32 overflow-hidden pointer-events-none">
+          <div className="absolute top-0 left-0 w-32 h-32 overflow-hidden pointer-events-none z-10">
             <div className={`absolute -left-12 top-10 w-50 text-center text-white font-bold py-1 shadow-md transform -rotate-45 uppercase tracking-wider text-sm
                 ${quote.status === "accepted" || quote.status === "approved" || quote.status === "sent" ? "bg-blue-500" : "bg-yellow-500"}
               `}>
               {quote.status}
+            </div>
+          </div>
+        )}
+
+        {(quote.status === "pending_approval" || quote.status === "pending approval") && (
+          <div className="absolute inset-0 pointer-events-none flex items-center justify-center z-0 opacity-10">
+            <div className="transform -rotate-45 text-8xl font-bold text-gray-500 whitespace-nowrap">
+              YET TO BE APPROVED
             </div>
           </div>
         )}

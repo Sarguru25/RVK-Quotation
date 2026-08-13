@@ -33,7 +33,7 @@ export async function POST(req) {
       };
       if (item.item_id) payloadItem.item_id = item.item_id;
       if (item.description) payloadItem.description = item.description;
-      if (item.tax_id) payloadItem.tax_id = item.tax_id;
+      payloadItem.tax_id = item.tax_id || "";
       return payloadItem;
     });
 
@@ -46,7 +46,7 @@ export async function POST(req) {
       subject_content: body.subject,
       notes: body.notes,
       terms: body.terms,
-      discount: `${Number(body.discount_percent) || 0}%`,
+      discount: body.discount_type === "amount" ? (Number(body.discount_value) || 0) : `${Number(body.discount_value) || 0}%`,
       discount_type: "entity_level",
       is_discount_before_tax: true,
       shipping_charge: Number(body.shipping_charges) || 0,

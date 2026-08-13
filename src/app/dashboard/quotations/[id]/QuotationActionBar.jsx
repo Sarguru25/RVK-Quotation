@@ -20,6 +20,9 @@ export default function QuotationActionBar({ quote }) {
   const [loadingAction, setLoadingAction] = useState(null);
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  
+  const [isDraftModalOpen, setIsDraftModalOpen] = useState(false);
+  const [draftReason, setDraftReason] = useState("");
 
   const status = quote.status?.toLowerCase();
   
@@ -78,6 +81,35 @@ export default function QuotationActionBar({ quote }) {
     } catch (error) {
       console.error(error);
       alert(`Error performing action ${action}`);
+    } finally {
+      setLoadingAction(null);
+    }
+  };
+
+  const handleConvertToDraft = async () => {
+    if (!draftReason.trim()) {
+      alert("Please provide a reason to convert to draft.");
+      return;
+    }
+    setLoadingAction("mark-draft");
+    try {
+      const res = await fetch(`/api/zoho/quotations/${quote.estimate_id}/mark-draft`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: draftReason })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(`Failed: ${data.error || "Unknown error"}`);
+        return;
+      }
+      alert("Success: Quotation converted to draft");
+      setIsDraftModalOpen(false);
+      setDraftReason("");
+      router.refresh();
+    } catch (e) {
+      console.error(e);
+      alert("Error converting to draft");
     } finally {
       setLoadingAction(null);
     }
@@ -157,7 +189,7 @@ export default function QuotationActionBar({ quote }) {
             </button>
           )}
 
-          {!isSent && isAccepted && !isConverted  && !isPendingApproval && isApproved && canEdit && (
+          {!isSent && isAccepted && !isConverted && !isPendingApproval && isApproved && canEdit && (
             <button
               onClick={() => handleAction("mark-sent", "mark-sent")}
               disabled={loadingAction === "mark-sent"}
@@ -165,6 +197,17 @@ export default function QuotationActionBar({ quote }) {
             >
               {loadingAction === "mark-sent" && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
               Mark as Sent
+            </button>
+          )}
+
+          {isApproved && (
+            <button
+              onClick={() => setIsDraftModalOpen(true)}
+              disabled={loadingAction === "mark-draft"}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-orange-500 rounded-lg hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-400 disabled:opacity-50 transition-colors"
+            >
+              {loadingAction === "mark-draft" && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+              Convert to Draft
             </button>
           )}
 
@@ -206,6 +249,46 @@ export default function QuotationActionBar({ quote }) {
         onClose={() => setIsShareModalOpen(false)}
         quoteId={quote.estimate_id}
       />
+
+      {isDraftModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+              <h3 className="text-lg font-semibold text-gray-800">Convert to Draft</h3>
+              <button onClick={() => setIsDraftModalOpen(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+              </button>
+            </div>
+            <div className="p-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Reason for converting to draft <span className="text-red-500">*</span></label>
+              <textarea
+                value={draftReason}
+                onChange={(e) => setDraftReason(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none"
+                rows="4"
+                placeholder="Enter the reason..."
+              ></textarea>
+              <p className="mt-2 text-xs text-gray-500">This reason will be saved in Zoho Books comments and activity logs.</p>
+            </div>
+            <div className="px-6 py-4 bg-gray-50 flex justify-end gap-3 border-t border-gray-100">
+              <button
+                onClick={() => setIsDraftModalOpen(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConvertToDraft}
+                disabled={!draftReason.trim() || loadingAction === "mark-draft"}
+                className="px-4 py-2 text-sm font-medium text-white bg-orange-500 rounded-lg hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+              >
+                {loadingAction === "mark-draft" && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

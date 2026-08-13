@@ -234,8 +234,28 @@ export default function QuotationsPage() {
     date: new Date().toISOString().split("T")[0],
     expiry_date: "",
     notes: "We thank you for your enquiry and look forward for your confirmation of order.",
-    terms: "",
-    discount_percent: 0,
+    terms: ` Price: Quoted in SGD, DAP Singapore.
+
+(Quoted prices are based on current raw material costs and prevailing exchange rates. Should raw material prices increase by more than 7%, or currency exchange rates fluctuate by more than 3% from the base rates at the time of quotation, the Seller reserves the right to revise the quoted prices accordingly.)
+
+Delivery: 6 to 8 Weeks from the date of approval of GAD.
+
+Payment: 30% Advance and balance before dispatch.
+
+Warranty: 12 months from the date of Installation or 18 months from the date of Supply, whichever is earlier.
+
+Technical Submittals: 
+1. GAD
+2. MTC
+
+Note: 
+1. Please contact us before issuing PO in case of changes to the specifications or quantity.
+2. Any additional documents will be charged separately.
+
+This is a computer-generated document; therefore, no signature is required.
+`,
+    discount_value: 0,
+    discount_type: "percent",
     shipping_charges: 0,
     adjustment: 0,
     line_items: [{ item_id: "", name: "", description: "", quantity: 1, rate: 0, tax_id: "" }],
@@ -352,8 +372,8 @@ export default function QuotationsPage() {
 
   // Computed totals
   const subTotal = form.line_items.reduce((acc, item) => acc + item.quantity * item.rate, 0);
-  const discountPercent = parseFloat(form.discount_percent) || 0;
-  const discountAmount = (subTotal * discountPercent) / 100;
+  const discountVal = parseFloat(form.discount_value) || 0;
+  const discountAmount = form.discount_type === "percent" ? (subTotal * discountVal) / 100 : discountVal;
   const afterDiscount = subTotal - discountAmount;
   const taxTotal = form.line_items.reduce((acc, item) => {
     const lineAmount = item.quantity * item.rate;
@@ -371,9 +391,9 @@ export default function QuotationsPage() {
       setSaving(true);
       const url = editingId ? `/api/zoho/quotes/${editingId}` : "/api/zoho/quotes/create";
       const method = editingId ? "PUT" : "POST";
-      
+
       const isSubmit = actionType !== 'draft';
-      
+
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
@@ -408,9 +428,9 @@ export default function QuotationsPage() {
     } catch { showToast("Something went wrong", "error"); }
   }
 
-  async function openEditModal(quote) {
+  async function openEditModal(quote, isClone = false) {
     const id = quote.zoho_estimate_id || quote.estimate_id || quote._id;
-    setEditingId(id);
+    setEditingId(isClone ? null : id);
     try {
       const res = await fetch(`/api/zoho/quotes/${id}`);
       const fullQuote = await res.json();
@@ -422,17 +442,31 @@ export default function QuotationsPage() {
       }
 
       if (fullQuote) {
+        let fetchDiscountVal = 0;
+        let fetchDiscountType = "percent";
+        if (fullQuote.discount) {
+          const dStr = String(fullQuote.discount);
+          if (dStr.endsWith("%")) {
+            fetchDiscountVal = parseFloat(dStr.replace("%", ""));
+            fetchDiscountType = "percent";
+          } else {
+            fetchDiscountVal = parseFloat(dStr);
+            fetchDiscountType = "amount";
+          }
+        }
+
         setForm({
           customer_id: fullQuote.customer_id || "",
           customer_name: fullQuote.customer_name || "",
-          estimate_number: fullQuote.estimate_number || "",
-          reference_number: fullQuote.reference_number || "",
+          estimate_number: isClone ? "" : (fullQuote.estimate_number || ""),
+          reference_number: isClone ? "" : (fullQuote.reference_number || ""),
           subject: fullQuote.subject || fullQuote.subject_content || "",
-          date: fullQuote.date || new Date().toISOString().split("T")[0],
+          date: isClone ? new Date().toISOString().split("T")[0] : (fullQuote.date || new Date().toISOString().split("T")[0]),
           expiry_date: fullQuote.expiry_date || "",
           notes: fullQuote.notes || "We thank you for your enquiry and look forward for your confirmation of order.",
           terms: fullQuote.terms || "",
-          discount_percent: fullQuote.discount || 0,
+          discount_value: fetchDiscountVal,
+          discount_type: fetchDiscountType,
           shipping_charges: fullQuote.shipping_charge || 0,
           adjustment: fullQuote.adjustment || 0,
           line_items: fullQuote.line_items?.map((item) => ({
@@ -588,13 +622,22 @@ export default function QuotationsPage() {
                 </td>
                 <td className="px-5 py-4 text-center">
                   <div className="flex items-center justify-center gap-2">
-                    {canEdit && (
+                    {canEdit && (q.status?.toLowerCase() === 'draft' || q.status?.toLowerCase() === 'pending_approval' || q.status?.toLowerCase() === 'pending approval') && (
                       <button
                         onClick={() => openEditModal(q)}
                         className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
                         title="Edit"
                       >
                         <Edit size={15} />
+                      </button>
+                    )}
+                    {canEdit && (
+                      <button
+                        onClick={() => openEditModal(q, true)}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-green-600 hover:bg-green-50 transition-colors"
+                        title="Clone"
+                      >
+                        <svg className="w-[15px] h-[15px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" /></svg>
                       </button>
                     )}
                     {canDelete && (
@@ -652,7 +695,7 @@ export default function QuotationsPage() {
                       const gstNo = (selected?.gst_no || selected?.rawZohoData?.gst_no || "").trim();
                       const gst18Tax = taxes.find(t => t.tax_name === "GST18" || (t.tax_name?.includes("GST") && !t.tax_name?.includes("IGST") && t.tax_percentage === 18));
                       const igst18Tax = taxes.find(t => t.tax_name === "IGST18" || (t.tax_name?.includes("IGST") && t.tax_percentage === 18));
-                      const defaultTaxId = gstNo.startsWith("33") 
+                      const defaultTaxId = gstNo.startsWith("33")
                         ? (gst18Tax ? (gst18Tax.zoho_tax_id || gst18Tax.tax_id || gst18Tax._id) : "")
                         : (igst18Tax ? (igst18Tax.zoho_tax_id || igst18Tax.tax_id || igst18Tax._id) : "");
 
@@ -708,6 +751,9 @@ export default function QuotationsPage() {
                     <option value="Gowtham N">Gowtham N</option>
                     <option value="Deepak R S">Deepak R S</option>
                     <option value="Srinath S">Srinath S</option>
+                    <option value="Abdul Hafeez">Abdul Hafeez</option>
+                    <option value="Santhiya">Santhiya</option>
+
                     {/* {users.map(u => (
                       <option key={u._id} value={u._id}>{u.name}</option>
                     ))} */}
@@ -899,10 +945,17 @@ export default function QuotationsPage() {
                     <span className="text-gray-600">Discount</span>
                     <div className="flex items-center gap-3">
                       <div className="flex items-center border border-gray-300 rounded overflow-hidden bg-white">
-                        <input type="number" min="0" max="100" step="any" value={form.discount_percent} onChange={e => setForm(prev => ({ ...prev, discount_percent: e.target.value }))} className="w-14 text-right px-2 py-1.5 text-sm outline-none" placeholder="0" />
-                        <span className="bg-gray-100 text-gray-500 px-2 py-1.5 border-l border-gray-300 font-medium">%</span>
+                        <input type="number" min="0" step="any" value={form.discount_value ?? ""} onChange={e => setForm(prev => ({ ...prev, discount_value: e.target.value }))} className="w-20 text-right px-2 py-1.5 text-sm outline-none" placeholder="0" />
+                        <select
+                          value={form.discount_type}
+                          onChange={e => setForm(prev => ({ ...prev, discount_type: e.target.value }))}
+                          className="bg-gray-100 text-gray-600 px-1 py-1.5 border-l border-gray-300 font-medium text-sm outline-none cursor-pointer"
+                        >
+                          <option value="percent">%</option>
+                          <option value="amount">$</option>
+                        </select>
                       </div>
-                      <span className="text-red-500 font-medium w-20 text-right">-{formatCurrency(discountAmount)}</span>
+                      <span className="text-red-500 font-medium w-24 text-right">-{formatCurrency(discountAmount)}</span>
                     </div>
                   </div>
                   {taxTotal > 0 && (
@@ -940,26 +993,26 @@ export default function QuotationsPage() {
                   {saving ? "Saving..." : "Save as Draft"}
                 </button>
                 <div className="relative">
-                  <button 
-                    onClick={() => setDropdownOpen(!dropdownOpen)} 
+                  <button
+                    onClick={() => setDropdownOpen(!dropdownOpen)}
                     className="bg-gray-100 border border-gray-300 text-gray-800 hover:bg-gray-200 px-5 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2"
                   >
                     Save and Send
                     <span className="text-xs text-gray-500">▼</span>
                   </button>
-                  
+
                   {dropdownOpen && (
                     <>
                       <div className="fixed inset-0 z-[65]" onClick={() => setDropdownOpen(false)}></div>
                       <div className="absolute bottom-full left-0 mb-1 bg-white border border-gray-200 rounded-md shadow-lg py-1 min-w-[160px] z-[70]">
-                        <button 
-                          onClick={() => { setDropdownOpen(false); handleSaveQuotation('approve'); }} 
+                        <button
+                          onClick={() => { setDropdownOpen(false); handleSaveQuotation('approve'); }}
                           className="w-full text-left px-4 py-2 text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 border-b border-gray-100"
                         >
                           Save and Approve
                         </button>
-                        <button 
-                          onClick={() => { setDropdownOpen(false); handleSaveQuotation('submit'); }} 
+                        <button
+                          onClick={() => { setDropdownOpen(false); handleSaveQuotation('submit'); }}
                           className="w-full text-left px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
                         >
                           Save and Submit
