@@ -96,12 +96,16 @@ export default async function QuoteDetailsPage({ params }) {
     if (user) creatorName = user.name;
   }
 
+  const currencyCode = quote.currency_code || localQuote?.rawZohoData?.currency_code || "INR";
+  const currencySymbol = quote.currency_symbol || localQuote?.rawZohoData?.currency_symbol || "₹";
+
   const formatCurrency = (amount) => {
-    return new Intl.NumberFormat("en-IN", {
+    const formatted = new Intl.NumberFormat("en-IN", {
       style: "decimal",
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(amount || 0);
+    return `${currencySymbol}${formatted}`;
   };
 
   const formatDate = (date) => {
@@ -114,8 +118,8 @@ export default async function QuoteDetailsPage({ params }) {
   // Convert number to words (simple implementation or just fallback if not available)
   // For production, a dedicated library like `number-to-words` is better.
   const numberToWords = (amount) => {
-    // simplified mock for visual purposes as requested by design
-    return `Indian Rupee ${Math.floor(amount)} Only`;
+    const currName = currencyCode === "INR" ? "Indian Rupee" : currencyCode === "SGD" ? "Singapore Dollar" : currencyCode === "USD" ? "US Dollar" : currencyCode === "EUR" ? "Euro" : currencyCode;
+    return `${currName} ${Math.floor(amount)} Only`;
   };
 
   return (
@@ -158,13 +162,11 @@ export default async function QuoteDetailsPage({ params }) {
             </div>
 
             <div className="text-right text-sm text-gray-700 leading-relaxed">
-              <p className="font-bold text-black">Zeetork Automation & Control Private Limited</p>
-              <p>Company ID : U27103TZ2024PTC032623</p>
-              <p>S.F.No.610/1A, L&T Road Campus Road,</p>
-              <p>Malumichampatti Post Office, Madukkarai Taluk,</p>
-              <p>Coimbatore Tamil Nadu 641050</p>
-              <p>India</p>
-              <p>GSTIN 33AACCZ4754H1Z7</p>
+              <p className="font-bold text-black">RVK Flowtech Pte Ltd</p>
+              <p>22 Sin Ming Lane,</p>
+              <p>#06-76, Midview City</p>
+              <p>Singapore 573969</p>
+              <p>UEN/GST No: 201922068H</p>
             </div>
           </div>
 
@@ -193,7 +195,7 @@ export default async function QuoteDetailsPage({ params }) {
               {quote.gst_no && <p className="mt-1">GSTIN {quote.gst_no}</p>}
             </div>
 
-            <div className="w-72 flex-shrink-0">
+            <div className="w-92 flex-shrink-0">
               <table className="w-full text-sm border-collapse border border-gray-200">
                 <tbody>
                   <tr className="border-b border-gray-200">
@@ -205,20 +207,16 @@ export default async function QuoteDetailsPage({ params }) {
                     <td className="py-2 px-3">{formatDate(quote.date)}</td>
                   </tr>
                   <tr className="border-b border-gray-200">
-                    <td className="py-2 px-3 bg-gray-50 border-r border-gray-200 text-gray-600">Expiry Date</td>
+                    <td className="py-2 px-3 bg-gray-50 border-r border-gray-200 text-gray-600">Valid Until</td>
                     <td className="py-2 px-3">{formatDate(quote.expiry_date)}</td>
                   </tr>
                   <tr className="border-b border-gray-200">
-                    <td className="py-2 px-3 bg-gray-50 border-r border-gray-200 text-gray-600">Customer Ref</td>
+                    <td className="py-2 px-3 bg-gray-50 border-r border-gray-200 text-gray-600">Enquiry REF</td>
                     <td className="py-2 px-3">{quote.reference_number || "-"}</td>
                   </tr>
                   <tr className="border-b border-gray-200">
                     <td className="py-2 px-3 bg-gray-50 border-r border-gray-200 text-gray-600">Sales person</td>
                     <td className="py-2 px-3">{quote.salesperson_name || "-"}</td>
-                  </tr>
-                  <tr>
-                    <td className="py-2 px-3 bg-gray-50 border-r border-gray-200 text-gray-600">Creator</td>
-                    <td className="py-2 px-3 font-medium text-blue-700">{creatorName}</td>
                   </tr>
                 </tbody>
               </table>
@@ -310,7 +308,7 @@ export default async function QuoteDetailsPage({ params }) {
 
             <div className="flex justify-between py-3 border-t border-b border-gray-200 mt-2">
               <span className="font-bold text-black">Total</span>
-              <span className="font-bold text-black text-base">₹{formatCurrency(quote.total)}</span>
+              <span className="font-bold text-black text-base">{formatCurrency(quote.total)}</span>
             </div>
 
             <div className="flex gap-2 py-4 text-xs">

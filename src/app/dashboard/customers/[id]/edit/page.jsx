@@ -147,6 +147,7 @@ export default function EditCustomerPage({ params }) {
       }
       
       showToast("Customer updated successfully!");
+      window.fetch('/api/sync/customers', { method: 'POST', keepalive: true }).catch(() => {});
       setTimeout(() => {
         router.push("/dashboard/customers");
       }, 1000);

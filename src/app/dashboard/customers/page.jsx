@@ -88,6 +88,7 @@ export default function CustomersPage() {
       const data = await res.json();
       if (!res.ok || data.success === false) { showToast(data.error || "Failed to delete", "error"); return; }
       showToast("Customer deleted successfully");
+      window.fetch('/api/sync/customers', { method: 'POST', keepalive: true }).catch(() => {});
       fetchCustomers();
     } catch { showToast("Something went wrong", "error"); }
   }

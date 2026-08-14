@@ -22,12 +22,21 @@ export default function NewCustomerPage() {
     phone: "",
     mobile: "",
     language_code: "en",
-    pan_no: "",
-    currency_code: "INR",
-    payment_terms: "15",
+    currency_code: "SGD",
+    payment_terms: "100",
     enable_portal: false,
     registration_no: "",
     remarks: "",
+    tax_id: "",
+    company_id: "",
+    contact_persons: [{
+        salutation: "",
+        first_name: "",
+        last_name: "",
+        email: "",
+        phone: "",
+        mobile: ""
+    }],
     billing_address: {
       attention: "",
       country: "",
@@ -79,6 +88,28 @@ export default function NewCustomerPage() {
     }
   }
 
+  function handleContactPersonChange(index, field, value) {
+    const newContacts = [...form.contact_persons];
+    newContacts[index][field] = value;
+    setForm({ ...form, contact_persons: newContacts });
+  }
+
+  function handleAddContactPerson() {
+    setForm({
+      ...form,
+      contact_persons: [
+        ...form.contact_persons,
+        { salutation: "", first_name: "", last_name: "", email: "", phone: "", mobile: "" }
+      ]
+    });
+  }
+
+  function handleRemoveContactPerson(index) {
+    const newContacts = [...form.contact_persons];
+    newContacts.splice(index, 1);
+    setForm({ ...form, contact_persons: newContacts });
+  }
+
   function handleCopyBilling(e) {
     const checked = e.target.checked;
     setCopyBilling(checked);
@@ -112,6 +143,7 @@ export default function NewCustomerPage() {
       }
       
       showToast("Customer created successfully!");
+      window.fetch('/api/sync/customers', { method: 'POST', keepalive: true }).catch(() => {});
       setTimeout(() => {
         router.push("/dashboard/customers");
       }, 1000);
@@ -516,15 +548,27 @@ export default function NewCustomerPage() {
               {activeTab === "other" && (
                 <div className="max-w-2xl space-y-6">
                   <div className="flex items-center">
-                    <label className="w-48 text-sm font-medium text-gray-700 flex items-center gap-1">PAN <Info size={14} className="text-gray-400" /></label>
-                    <input type="text" name="pan_no" value={form.pan_no} onChange={handleChange} className="flex-1 max-w-sm bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 focus:outline-none focus:border-blue-500 transition-colors" />
+                    <label className="w-48 text-sm font-medium text-gray-700 flex items-center gap-1">Tax Rate</label>
+                    <div className="flex-1 max-w-sm relative">
+                      <select name="tax_id" value={form.tax_id} onChange={handleChange} className="w-full appearance-none bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 focus:outline-none focus:border-blue-500 transition-colors">
+                        <option value="">Select a Tax</option>
+                      </select>
+                      <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                      <p className="mt-1 text-xs text-gray-500">To associate more than one tax, you need to create a tax group in Settings.</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center">
+                    <label className="w-48 text-sm font-medium text-gray-700 flex items-center gap-1">Company ID <Info size={14} className="text-gray-400" /></label>
+                    <input type="text" name="company_id" value={form.company_id} onChange={handleChange} className="flex-1 max-w-sm bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 focus:outline-none focus:border-blue-500 transition-colors" />
                   </div>
                   <div className="flex items-center">
                     <label className="w-48 text-sm font-medium text-gray-700">Currency</label>
                     <div className="flex-1 max-w-sm relative">
                       <select name="currency_code" value={form.currency_code} onChange={handleChange} className="w-full appearance-none bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 focus:outline-none focus:border-blue-500 transition-colors">
+                        <option value="SGD">SGD - Singapore Dollar</option>
                         <option value="INR">INR - Indian Rupee</option>
                         <option value="USD">USD - US Dollar</option>
+                        <option value="EUR">EUR - Euro</option>
                       </select>
                       <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                     </div>
@@ -533,6 +577,7 @@ export default function NewCustomerPage() {
                     <label className="w-48 text-sm font-medium text-gray-700">Payment Terms</label>
                     <div className="flex-1 max-w-sm relative">
                       <select name="payment_terms" value={form.payment_terms} onChange={handleChange} className="w-full appearance-none bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 focus:outline-none focus:border-blue-500 transition-colors">
+                        <option value="100">100% Advance</option>
                         <option value="15">Due on Receipt</option>
                         <option value="30">Net 30</option>
                         <option value="45">Net 45</option>
@@ -547,6 +592,15 @@ export default function NewCustomerPage() {
                       <input type="checkbox" name="enable_portal" checked={form.enable_portal} onChange={handleChange} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
                       <span className="text-sm text-gray-700">Allow portal access for this customer</span>
                     </label>
+                  </div>
+                  <div className="flex items-start mt-4">
+                    <label className="w-48 text-sm font-medium text-gray-700 mt-2">Documents</label>
+                    <div className="flex-1 max-w-sm">
+                      <div className="border border-gray-200 rounded-lg bg-gray-50 flex items-center justify-center p-4 cursor-not-allowed opacity-70">
+                        <span className="text-sm text-gray-500">Upload File (Supported after creation)</span>
+                      </div>
+                      <p className="mt-1 text-xs text-gray-500">You can upload a maximum of 10 files, 10MB each (Save customer first).</p>
+                    </div>
                   </div>
                 </div>
               )}
@@ -584,7 +638,93 @@ export default function NewCustomerPage() {
                 </div>
               )}
 
-              {["contact_persons", "tags"].includes(activeTab) && (
+              {activeTab === "contact_persons" && (
+                <div className="max-w-5xl space-y-4">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm text-left">
+                      <thead className="text-xs text-gray-500 bg-gray-50 uppercase border-b border-gray-200">
+                        <tr>
+                          <th className="px-4 py-3 min-w-[120px]">Salutation</th>
+                          <th className="px-4 py-3 min-w-[150px]">First Name</th>
+                          <th className="px-4 py-3 min-w-[150px]">Last Name</th>
+                          <th className="px-4 py-3 min-w-[200px]">Email Address</th>
+                          <th className="px-4 py-3 min-w-[150px]">Work Phone</th>
+                          <th className="px-4 py-3 min-w-[150px]">Mobile</th>
+                          <th className="px-4 py-3 w-10"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {form.contact_persons.map((person, index) => (
+                          <tr key={index} className="border-b border-gray-100">
+                            <td className="p-2">
+                              <select 
+                                value={person.salutation} 
+                                onChange={(e) => handleContactPersonChange(index, "salutation", e.target.value)}
+                                className="w-full bg-white border border-gray-200 rounded px-2 py-1.5 focus:border-blue-500 outline-none"
+                              >
+                                <option value=""></option>
+                                <option value="Mr.">Mr.</option>
+                                <option value="Mrs.">Mrs.</option>
+                                <option value="Ms.">Ms.</option>
+                              </select>
+                            </td>
+                            <td className="p-2">
+                              <input 
+                                type="text" 
+                                value={person.first_name} 
+                                onChange={(e) => handleContactPersonChange(index, "first_name", e.target.value)}
+                                className="w-full bg-white border border-gray-200 rounded px-2 py-1.5 focus:border-blue-500 outline-none"
+                              />
+                            </td>
+                            <td className="p-2">
+                              <input 
+                                type="text" 
+                                value={person.last_name} 
+                                onChange={(e) => handleContactPersonChange(index, "last_name", e.target.value)}
+                                className="w-full bg-white border border-gray-200 rounded px-2 py-1.5 focus:border-blue-500 outline-none"
+                              />
+                            </td>
+                            <td className="p-2">
+                              <input 
+                                type="email" 
+                                value={person.email} 
+                                onChange={(e) => handleContactPersonChange(index, "email", e.target.value)}
+                                className="w-full bg-white border border-gray-200 rounded px-2 py-1.5 focus:border-blue-500 outline-none"
+                              />
+                            </td>
+                            <td className="p-2">
+                              <input 
+                                type="text" 
+                                value={person.phone} 
+                                onChange={(e) => handleContactPersonChange(index, "phone", e.target.value)}
+                                className="w-full bg-white border border-gray-200 rounded px-2 py-1.5 focus:border-blue-500 outline-none"
+                              />
+                            </td>
+                            <td className="p-2">
+                              <input 
+                                type="text" 
+                                value={person.mobile} 
+                                onChange={(e) => handleContactPersonChange(index, "mobile", e.target.value)}
+                                className="w-full bg-white border border-gray-200 rounded px-2 py-1.5 focus:border-blue-500 outline-none"
+                              />
+                            </td>
+                            <td className="p-2 text-center">
+                              <button type="button" onClick={() => handleRemoveContactPerson(index)} className="text-red-400 hover:text-red-600">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <button type="button" onClick={handleAddContactPerson} className="text-blue-600 flex items-center gap-1 text-sm font-medium hover:underline bg-blue-50 px-3 py-1.5 rounded-lg w-fit">
+                    + Add Contact Person
+                  </button>
+                </div>
+              )}
+
+              {["tags"].includes(activeTab) && (
                 <div className="py-12 flex flex-col items-center justify-center text-center">
                   <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4">
                     <Info size={24} className="text-gray-400" />

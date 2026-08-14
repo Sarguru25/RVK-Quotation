@@ -9,7 +9,7 @@ export async function GET(req) {
     
     const { searchParams } = new URL(req.url);
     const page = parseInt(searchParams.get('page')) || 1;
-    const limit = parseInt(searchParams.get('limit')) || 10000;
+    const limit = parseInt(searchParams.get('limit')) || 20;
     const search = searchParams.get('search') || '';
     
     const result = await getItemsFromDB({ page, limit, search });
@@ -18,7 +18,6 @@ export async function GET(req) {
     if (error.message?.includes("Forbidden") || error.message?.includes("Unauthorized")) {
       return NextResponse.json({ error: error.message }, { status: 403 });
     }
-    console.error("[API] GET Items Error:", error.message || error);
-    return NextResponse.json({ data: [], meta: { total: 0 } }, { status: 500 });
+    return NextResponse.json({ data: [], pagination: { total: 0 } }, { status: 500 });
   }
 }

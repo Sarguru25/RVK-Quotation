@@ -45,11 +45,15 @@ export async function POST(req) {
       last_name: body.last_name,
       notes: body.remarks || "",
       language_code: body.language_code || "en",
-      currency_code: body.currency_code || "INR",
+      currency_code: body.currency_code || "SGD",
       payment_terms: parseInt(body.payment_terms) || 15,
-      payment_terms_label: body.payment_terms == "15" ? "Due on Receipt" : `Net ${body.payment_terms}`,
+      payment_terms_label: body.payment_terms == "100" ? "100% Advance" : body.payment_terms == "15" ? "Due on Receipt" : `Net ${body.payment_terms}`,
+      is_portal_enabled: body.enable_portal || false,
       billing_address: body.billing_address,
       shipping_address: body.shipping_address,
+      tax_id: body.tax_id || undefined,
+      company_id: body.company_id || undefined,
+      contact_persons: (body.contact_persons || []).filter(cp => cp.email || cp.first_name || cp.last_name),
       custom_fields: [
         {
           customfield_id: "2315070000000071093",

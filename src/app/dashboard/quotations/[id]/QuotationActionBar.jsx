@@ -75,6 +75,7 @@ export default function QuotationActionBar({ quote }) {
           return; // Prevent refresh since we are redirecting
         } else {
           alert(`Success: ${data.message || "Action completed"}`);
+          window.fetch('/api/sync/quotations', { method: 'POST', keepalive: true }).catch(() => {});
         }
         router.refresh();
       }
@@ -104,6 +105,7 @@ export default function QuotationActionBar({ quote }) {
         return;
       }
       alert("Success: Quotation converted to draft");
+      window.fetch('/api/sync/quotations', { method: 'POST', keepalive: true }).catch(() => {});
       setIsDraftModalOpen(false);
       setDraftReason("");
       router.refresh();

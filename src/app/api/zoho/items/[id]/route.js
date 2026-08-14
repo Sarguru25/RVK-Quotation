@@ -77,6 +77,9 @@ export async function PUT(req, { params }) {
     if (body.tax_id) itemPayload.tax_id = body.tax_id;
     if (body.account_id) itemPayload.account_id = body.account_id;
     if (body.purchase_account_id) itemPayload.purchase_account_id = body.purchase_account_id;
+    if (body.purchase_tax_id) itemPayload.purchase_tax_id = body.purchase_tax_id;
+    if (body.vendor_id) itemPayload.vendor_id = body.vendor_id;
+    if (body.custom_fields && body.custom_fields.length > 0) itemPayload.custom_fields = body.custom_fields;
 
     const response = await axios.put(
       `https://www.zohoapis.com/books/v3/items/${zohoItemId}`,
