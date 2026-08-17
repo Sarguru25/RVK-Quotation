@@ -275,10 +275,6 @@ This is a computer-generated document; therefore, no signature is required.
     setTimeout(() => setToast(null), 3500);
   }
 
-
-
-
-
   // Helper to get tax percentage from tax_id
   function getTaxPercentage(taxId) {
     if (!taxId) return 0;
@@ -287,8 +283,6 @@ This is a computer-generated document; therefore, no signature is required.
   }
 
   useEffect(() => {
-
-    // Check for pending items from Actuators conversion
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get("new") === "true") {
       const pendingItems = localStorage.getItem("pending_quotation_items");
@@ -485,14 +479,14 @@ This is a computer-generated document; therefore, no signature is required.
               New Quotation
             </button>
           )}
-          <button
+          {/* <button
             onClick={() => fetchQuotes(true)}
             className="btn-press flex items-center gap-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors"
             title="Fetch all quotations from Zoho Books"
           >
             <DownloadCloud size={16} />
             Full Fetch
-          </button>
+          </button> */}
           <button
             onClick={() => fetchQuotes(false)}
             className="btn-press flex items-center gap-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors"

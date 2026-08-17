@@ -44,7 +44,7 @@ function TextAreaField({ label, ...props }) {
 import { useSession } from "next-auth/react";
 import { PERMISSIONS, hasPermission } from "@/lib/rbac/permissions";
 
-function SearchableSelect({ options, value, onChange, placeholder, className }) {
+function SearchableSelect({ options, value, onChange, onInputChange, placeholder, className, footerAction, displayValueOverride }) {
   const [query, setQuery] = useState("");
   const [isOpen, setIsOpen] = useState(false);
   const wrapperRef = useRef(null);
@@ -60,7 +60,7 @@ function SearchableSelect({ options, value, onChange, placeholder, className }) 
   }, []);
 
   const selectedOption = options.find(o => o.value === value);
-  const displayValue = isOpen ? query : (selectedOption ? selectedOption.label : "");
+  const displayValue = isOpen ? query : (displayValueOverride !== undefined ? displayValueOverride : (selectedOption ? selectedOption.label : ""));
 
   const filtered = options.filter(o => (o.label || "").toLowerCase().includes((query || "").toLowerCase()));
 
@@ -73,15 +73,24 @@ function SearchableSelect({ options, value, onChange, placeholder, className }) 
         value={displayValue}
         onChange={e => {
           setQuery(e.target.value);
+          if (onInputChange) onInputChange(e.target.value);
           if (!isOpen) setIsOpen(true);
         }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            setIsOpen(false);
+          }
+        }}
         onClick={() => {
-          setQuery("");
-          setIsOpen(true);
+          if (!isOpen) {
+            setQuery(displayValueOverride !== undefined ? displayValueOverride : (selectedOption ? selectedOption.label : ""));
+            setIsOpen(true);
+          }
         }}
       />
       {isOpen && (
-        <div className="absolute z-[100] w-full h-40 mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto divide-y divide-gray-100">
+        <div className="absolute z-[100] w-full max-h-[320px] mt-1 bg-white border border-gray-300 rounded-md shadow-lg overflow-auto divide-y divide-gray-100">
           {filtered.length > 0 ? filtered.map((o, idx) => (
             <div
               key={`${o.value}-${idx}`}
@@ -107,6 +116,17 @@ function SearchableSelect({ options, value, onChange, placeholder, className }) 
             </div>
           )) : (
             <div className="px-3 py-2 text-sm text-gray-500 text-left">No results found</div>
+          )}
+          {footerAction && (
+            <div 
+              className="px-3 py-2 text-sm font-semibold text-blue-600 cursor-pointer hover:bg-blue-50 border-t border-gray-100"
+              onClick={() => {
+                setIsOpen(false);
+                footerAction.onClick();
+              }}
+            >
+              {footerAction.label}
+            </div>
           )}
         </div>
       )}
@@ -164,7 +184,7 @@ export default function NewQuotationPage() {
   const { data: itemsData } = useQuery({
     queryKey: ['items-list'],
     queryFn: async () => {
-      const res = await fetch(`/api/zoho/items`);
+      const res = await fetch(`/api/zoho/items?limit=5000`);
       if (!res.ok) throw new Error("Failed to fetch items");
       const json = await res.json();
       return json.data ? json.data : json;
@@ -175,7 +195,7 @@ export default function NewQuotationPage() {
   const { data: taxesData } = useQuery({
     queryKey: ['taxes-list'],
     queryFn: async () => {
-      const res = await fetch(`/api/zoho/taxes`);
+      const res = await fetch(`/api/zoho/taxes?limit=100`);
       if (!res.ok) throw new Error("Failed to fetch taxes");
       const json = await res.json();
       return json.data ? json.data : json;
@@ -345,13 +365,13 @@ This is a computer-generated document and hence no signature is required.
   }, [canCreate]);
 
   useEffect(() => {
-    if (open && form.customer_id && !form.customer_name && customers.length > 0) {
+    if (form.customer_id && !form.customer_name && customers.length > 0) {
       const cust = customers.find(c => (c.zoho_customer_id || c._id) === form.customer_id);
       if (cust) {
         setForm(prev => ({ ...prev, customer_name: cust.customer_name || cust.contact_name || "" }));
       }
     }
-  }, [open, customers, form.customer_id, form.customer_name]);
+  }, [customers, form.customer_id, form.customer_name]);
 
   const formatDate = (date) => {
     if (!date) return "—";
@@ -604,16 +624,16 @@ This is a computer-generated document and hence no signature is required.
                 <div className="md:col-span-3"></div>
               </div>
 
-              <div className="mb-6 bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+              <div className="mb-6 bg-white border border-gray-200 rounded-lg shadow-sm overflow-visible">
                 <table className="w-full text-left">
                   <thead className="bg-gray-50 border-b border-gray-200 text-xs text-gray-500 uppercase tracking-wider">
                     <tr>
-                      <th className="px-5 py-3.5 font-medium">Item Details</th>
+                      <th className="px-5 py-3.5 font-medium rounded-tl-lg">Item Details</th>
                       <th className="px-5 py-3.5 font-medium w-32 text-right">Quantity</th>
                       <th className="px-5 py-3.5 font-medium w-40 text-right">Rate</th>
                       <th className="px-5 py-3.5 font-medium w-40 text-right">Tax</th>
                       <th className="px-5 py-3.5 font-medium w-32 text-right">Amount</th>
-                      <th className="px-3 py-3.5 w-12"></th>
+                      <th className="px-3 py-3.5 w-12 rounded-tr-lg"></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
@@ -638,6 +658,13 @@ This is a computer-generated document and hence no signature is required.
                                 };
                               })}
                               value={item.item_id || ""}
+                              displayValueOverride={item.name}
+                              onInputChange={(val) => {
+                                handleItemChange(index, "name", val);
+                                if (item.item_id) {
+                                  handleItemChange(index, "item_id", "");
+                                }
+                              }}
                               onChange={(val) => {
                                 const selectedItem = items.find(i => (i.zoho_item_id || i.item_id || i._id) === val);
                                 const updated = [...form.line_items];
@@ -655,15 +682,12 @@ This is a computer-generated document and hence no signature is required.
                                 }
                                 setForm(prev => ({ ...prev, line_items: updated }));
                               }}
-                              placeholder="Select an item from Zoho"
-                              className="w-full bg-white border border-gray-200 rounded px-2 py-1.5 text-sm outline-none text-gray-800 font-medium focus:border-blue-500 mb-2"
-                            />
-                            <input
-                              type="text"
-                              value={item.name}
-                              onChange={e => handleItemChange(index, "name", e.target.value)}
-                              placeholder="Or type item name manually..."
-                              className="w-full text-sm text-gray-800 bg-transparent border border-gray-200 rounded px-2 py-1.5 outline-none focus:border-blue-500 mb-1"
+                              placeholder="Select or type an item name..."
+                              className="w-full bg-white border border-gray-200 rounded px-2 py-1.5 text-sm outline-none text-gray-800 font-medium focus:border-blue-500 mb-1"
+                              footerAction={{
+                                label: "Add new item +",
+                                onClick: () => window.open('/dashboard/items/new', '_blank')
+                              }}
                             />
                             <textarea
                               value={item.description || ""}

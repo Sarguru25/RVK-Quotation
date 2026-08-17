@@ -27,139 +27,179 @@ export default function CustomerView({ customer, customerId }) {
   //   fetchAnalytics();
   // }, [customerId]);
 
-  const tabs = ['Overview', 'Visits', 'Quotations', 'Activity'];
+  const tabs = ['Overview',
+    //  'Quotations', 'Visits', 'Activity'
+  ];
 
   return (
-    <div className="bg-gray-50/50 min-h-screen p-8 w-full max-w-7xl mx-auto font-sans text-gray-900 pb-20">
+    <div className="bg-white min-h-screen w-full font-sans text-gray-900 flex flex-col">
       {/* HEADER SECTION */}
-      <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mb-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-        <div className="flex gap-5 items-center">
-          <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-2xl font-bold shadow-inner">
-            {customer.contact_name ? customer.contact_name.charAt(0).toUpperCase() : 'C'}
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">{customer.contact_name}</h1>
-            <div className="flex flex-wrap items-center gap-3 mt-2 text-sm text-gray-600">
-              {customer.company_name && (
-                <div className="flex items-center gap-1.5"><Building2 size={14} /> {customer.company_name}</div>
-              )}
-              {customer.email && (
-                <div className="flex items-center gap-1.5"><Mail size={14} /> {customer.email}</div>
-              )}
-              {customer.phone && (
-                <div className="flex items-center gap-1.5"><Phone size={14} /> {customer.phone}</div>
-              )}
-              {customer.gst_no && (
-                <div className="flex items-center gap-1.5"><FileText size={14} /> GST: {customer.gst_no}</div>
-              )}
-            </div>
-          </div>
+      <div className="px-6 py-4 flex items-center justify-between border-b border-gray-200">
+        <div className="flex items-center gap-3">
+          <h1 className="text-xl font-medium text-gray-900">{customer.company_name || customer.contact_name}</h1>
         </div>
 
-        <div className="flex gap-3">
-          <Link href={`/dashboard/visits/new?customerId=${customerId}`} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium shadow-sm transition-all hover:shadow">
-            <Plus size={16} /> Create Visit
+        <div className="flex items-center gap-2">
+          <Link href={`/dashboard/customers/${customerId}/edit`} className="px-3 py-1.5 text-sm bg-gray-50 border border-gray-200 rounded hover:bg-gray-100 font-medium">
+            Edit
           </Link>
-          <Link href={`/dashboard/quotations?new=true&customerId=${customerId}`} className="flex items-center gap-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg font-medium shadow-sm transition-all">
-            <FileSignature size={16} /> New Quote
-          </Link>
-          <button className="flex items-center justify-center bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 w-10 h-10 rounded-lg shadow-sm transition-all">
-            <Share2 size={16} />
+          <button className="px-3 py-1.5 text-sm bg-gray-50 border border-gray-200 rounded hover:bg-gray-100 font-medium flex items-center">
+            <Share2 size={14} className="text-gray-600" />
           </button>
-        </div>
-      </div>
-
-      {/* ANALYTICS CARDS */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-center">
-          <div className="text-gray-500 text-xs font-semibold uppercase tracking-wider mb-1 flex items-center gap-1.5"><Briefcase size={12} /> Total Visits</div>
-          <div className="text-2xl font-bold text-gray-900">{loading ? '-' : analytics?.totalVisits || 0}</div>
-        </div>
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-center">
-          <div className="text-gray-500 text-xs font-semibold uppercase tracking-wider mb-1 flex items-center gap-1.5"><FileSignature size={12} /> Total Quotes</div>
-          <div className="text-2xl font-bold text-gray-900">{loading ? '-' : analytics?.totalQuotations || 0}</div>
-        </div>
-        <div className="bg-green-50 p-4 rounded-xl shadow-sm border border-green-100 flex flex-col justify-center">
-          <div className="text-green-700 text-xs font-semibold uppercase tracking-wider mb-1 flex items-center gap-1.5"><CheckCircle2 size={12} /> Accepted</div>
-          <div className="text-2xl font-bold text-green-800">{loading ? '-' : analytics?.acceptedQuotations || 0}</div>
-        </div>
-        <div className="bg-yellow-50 p-4 rounded-xl shadow-sm border border-yellow-100 flex flex-col justify-center">
-          <div className="text-yellow-700 text-xs font-semibold uppercase tracking-wider mb-1 flex items-center gap-1.5"><Clock size={12} /> Pending</div>
-          <div className="text-2xl font-bold text-yellow-800">{loading ? '-' : analytics?.pendingQuotations || 0}</div>
-        </div>
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-center">
-          <div className="text-gray-500 text-xs font-semibold uppercase tracking-wider mb-1 flex items-center gap-1.5"><Calendar size={12} /> Last Visit</div>
-          <div className="text-sm font-bold text-gray-900 mt-1">{loading ? '-' : (analytics?.lastVisit ? new Date(analytics.lastVisit).toLocaleDateString('en-GB') : 'Never')}</div>
-        </div>
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-center">
-          <div className="text-gray-500 text-xs font-semibold uppercase tracking-wider mb-1 flex items-center gap-1.5"><Activity size={12} /> Last Activity</div>
-          <div className="text-sm font-bold text-gray-900 mt-1">{loading ? '-' : (analytics?.recentActivities?.[0]?.date ? new Date(analytics.recentActivities[0].date).toLocaleDateString('en-GB') : 'None')}</div>
+          <Link href={`/dashboard/quotations?new=true&customerId=${customerId}`} className="px-3 py-1.5 text-sm bg-blue-500 hover:bg-blue-600 text-white rounded font-medium shadow-sm">
+            New Transaction
+          </Link>
+          <button className="px-3 py-1.5 text-sm bg-gray-50 border border-gray-200 rounded hover:bg-gray-100 font-medium">
+            More ▾
+          </button>
+          <Link href="/dashboard/customers" className="p-1.5 text-gray-400 hover:bg-gray-100 rounded ml-2">
+            <XCircle size={20} />
+          </Link>
         </div>
       </div>
 
       {/* TABS */}
-      <div className="flex space-x-1 bg-gray-200/50 p-1 rounded-xl w-fit mb-6">
-        {tabs.map(tab => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-6 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === tab ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/50'}`}
-          >
-            {tab}
-          </button>
-        ))}
+      <div className="px-6 pt-3 border-b border-gray-200 bg-white">
+        <div className="flex space-x-6">
+          {tabs.map(tab => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`pb-2 text-sm font-medium transition-colors border-b-2 ${activeTab === tab ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-600 hover:text-gray-900'}`}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* TAB CONTENT */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 min-h-[400px]">
+      <div className="flex-1 bg-white overflow-y-auto">
         {activeTab === 'Overview' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 border-b pb-2">Contact Details</h3>
-              <div className="space-y-4">
-                <div className="flex justify-between items-center py-2 border-b border-gray-50">
-                  <span className="text-sm text-gray-500">Contact Person</span>
-                  <span className="text-sm font-medium text-gray-900">{customer.contact_name || 'N/A'}</span>
-                </div>
-                <div className="flex justify-between items-center py-2 border-b border-gray-50">
-                  <span className="text-sm text-gray-500">Email Address</span>
-                  <span className="text-sm font-medium text-gray-900">{customer.email || 'N/A'}</span>
-                </div>
-                <div className="flex justify-between items-center py-2 border-b border-gray-50">
-                  <span className="text-sm text-gray-500">Phone Number</span>
-                  <span className="text-sm font-medium text-gray-900">{customer.phone || customer.mobile || 'N/A'}</span>
-                </div>
-                <div className="flex justify-between items-center py-2 border-b border-gray-50">
-                  <span className="text-sm text-gray-500">Customer Type</span>
-                  <span className="text-sm font-medium text-gray-900">{customer.customer_sub_type || customer.contact_type || 'Business'}</span>
+          <div className="flex flex-col md:flex-row h-full">
+            {/* Left Column - Details */}
+            <div className="w-full md:w-[350px] shrink-0 border-r border-gray-200 bg-gray-50/30">
+              <div className="p-4 border-b border-gray-200">
+                <div className="text-sm font-medium text-gray-800 mb-3">{customer.company_name || customer.contact_name}</div>
+                <div className="flex items-start gap-3">
+                  <div className="w-12 h-12 bg-gray-200 rounded flex items-center justify-center shrink-0">
+                    <User size={24} className="text-white" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold text-gray-900">{customer.contact_name}</div>
+                    <div className="text-xs text-gray-500 mb-2">{customer.email || 'No email provided'}</div>
+                    <div className="flex gap-3 text-xs text-blue-600">
+                      <button className="hover:underline">Invite to Portal</button>
+                      <button className="hover:underline">Send Email</button>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 border-b pb-2">Address Information</h3>
-              <div className="space-y-6">
-                <div>
-                  <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Billing Address</h4>
+              {/* ADDRESS SECTION */}
+              <div className="p-4 border-b border-gray-200">
+                <div className="text-xs font-semibold text-gray-500 tracking-wider mb-3 flex justify-between items-center">
+                  ADDRESS
+                </div>
+                
+                <div className="mb-4">
+                  <div className="text-xs text-gray-500 mb-1">Billing Address</div>
                   {customer.billing_address && (customer.billing_address.address || customer.billing_address.city) ? (
-                    <p className="text-sm text-gray-700 leading-relaxed">
+                    <p className="text-sm text-gray-800 leading-relaxed">
                       {customer.billing_address.attention && <>{customer.billing_address.attention}<br /></>}
                       {customer.billing_address.address && <>{customer.billing_address.address}<br /></>}
                       {[customer.billing_address.city, customer.billing_address.state].filter(Boolean).join(", ")}<br />
                       {[customer.billing_address.zip, customer.billing_address.country].filter(Boolean).join(" ")}
                     </p>
-                  ) : <p className="text-sm text-gray-400 italic">No billing address provided.</p>}
+                  ) : <p className="text-sm text-gray-400 italic">No billing address</p>}
                 </div>
-                <div>
-                  <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Shipping Address</h4>
+
+                <div className="mb-3">
+                  <div className="text-xs text-gray-500 mb-1">Shipping Address</div>
                   {customer.shipping_address && (customer.shipping_address.address || customer.shipping_address.city) ? (
-                    <p className="text-sm text-gray-700 leading-relaxed">
+                    <p className="text-sm text-gray-800 leading-relaxed">
                       {customer.shipping_address.attention && <>{customer.shipping_address.attention}<br /></>}
                       {customer.shipping_address.address && <>{customer.shipping_address.address}<br /></>}
                       {[customer.shipping_address.city, customer.shipping_address.state].filter(Boolean).join(", ")}<br />
                       {[customer.shipping_address.zip, customer.shipping_address.country].filter(Boolean).join(" ")}
                     </p>
-                  ) : <p className="text-sm text-gray-400 italic">No shipping address provided.</p>}
+                  ) : <p className="text-sm text-gray-400 italic">No shipping address</p>}
+                </div>
+                <button className="text-xs text-blue-600 hover:underline">Add additional address</button>
+              </div>
+
+              {/* OTHER DETAILS */}
+              <div className="p-4">
+                <div className="text-xs font-semibold text-gray-500 tracking-wider mb-4">
+                  OTHER DETAILS
+                </div>
+                <div className="space-y-4">
+                  <div className="flex gap-4">
+                    <span className="text-xs text-gray-500 w-28">Customer Type</span>
+                    <span className="text-sm text-gray-900">{customer.customer_sub_type || 'Business'}</span>
+                  </div>
+                  <div className="flex gap-4">
+                    <span className="text-xs text-gray-500 w-28">Default Currency</span>
+                    <span className="text-sm text-gray-900">{customer.currency_code || 'INR'}</span>
+                  </div>
+                  <div className="flex gap-4">
+                    <span className="text-xs text-gray-500 w-28">Business Legal Name</span>
+                    <span className="text-sm text-gray-900">{customer.company_name}</span>
+                  </div>
+                  <div className="flex gap-4">
+                    <span className="text-xs text-gray-500 w-28">GST Treatment</span>
+                    <span className="text-sm text-gray-900">{customer.gst_treatment || 'Registered Business - Regular'}</span>
+                  </div>
+                  <div className="flex gap-4">
+                    <span className="text-xs text-gray-500 w-28">GSTIN</span>
+                    <span className="text-sm text-gray-900">{customer.gst_no || 'N/A'}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Column - Financials */}
+            <div className="flex-1 p-6">
+              <div className="bg-blue-50/50 rounded p-3 text-sm text-blue-800 mb-8 border border-blue-100 flex items-center justify-between">
+                <span>You can request your contact to directly update the GSTIN by sending an email. <button className="text-blue-600 hover:underline">Send email</button></span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-8 mb-8">
+                <div>
+                  <div className="text-xs text-gray-500 mb-1">Payment due period</div>
+                  <div className="text-sm text-gray-900">{customer.payment_terms_label || 'Due on Receipt'}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500 mb-1">Credit Limit</div>
+                  <div className="text-sm text-gray-900">{customer.credit_limit || 'Unlimited'}</div>
+                </div>
+              </div>
+
+              <div className="mb-4">
+                <h3 className="text-sm font-semibold text-gray-900 mb-4">Receivables</h3>
+                <div className="border border-gray-200 rounded">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 border-b border-gray-200 text-xs text-gray-500 uppercase">
+                      <tr>
+                        <th className="px-4 py-2 font-medium text-left">Currency</th>
+                        <th className="px-4 py-2 font-medium text-right">Outstanding Receivables</th>
+                        <th className="px-4 py-2 font-medium text-right">Unused Credits</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      <tr>
+                        <td className="px-4 py-3 text-gray-700">{customer.currency_code || 'INR'}</td>
+                        <td className="px-4 py-3 text-right text-blue-600">
+                          {customer.currency_code === 'INR' ? '₹' : (customer.currency_symbol || '')}
+                          {parseFloat(customer.outstanding_receivable_amount || 0).toLocaleString('en-IN', {minimumFractionDigits: 2})}
+                        </td>
+                        <td className="px-4 py-3 text-right text-gray-700">
+                          {customer.currency_code === 'INR' ? '₹' : (customer.currency_symbol || '')}
+                          {parseFloat(customer.unused_credits_receivable_amount || 0).toLocaleString('en-IN', {minimumFractionDigits: 2})}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </div>
