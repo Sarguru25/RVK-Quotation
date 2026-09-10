@@ -140,6 +140,8 @@ export default function NewQuotationPage() {
   const canCreate = hasPermission(userPermissions, PERMISSIONS.QUOTATION.CREATE);
   const canEdit = hasPermission(userPermissions, PERMISSIONS.QUOTATION.EDIT);
   const canDelete = hasPermission(userPermissions, PERMISSIONS.QUOTATION.DELETE);
+  const canApprove = hasPermission(userPermissions, PERMISSIONS.QUOTATION.APPROVE);
+  const canSubmit = hasPermission(userPermissions, PERMISSIONS.QUOTATION.SUBMIT);
 
   const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -807,35 +809,41 @@ This is a computer-generated document and hence no signature is required.
                 <button onClick={() => handleSaveQuotation('draft')} disabled={saving} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-md text-sm font-medium transition-colors shadow-sm">
                   {saving ? "Saving..." : "Save as Draft"}
                 </button>
-                <div className="relative">
-                  <button
-                    onClick={() => setDropdownOpen(!dropdownOpen)}
-                    className="bg-gray-100 border border-gray-300 text-gray-800 hover:bg-gray-200 px-5 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2"
-                  >
-                    Save and Send
-                    <span className="text-xs text-gray-500">▼</span>
-                  </button>
+                {(canApprove || canSubmit) && (
+                  <div className="relative">
+                    <button
+                      onClick={() => setDropdownOpen(!dropdownOpen)}
+                      className="bg-gray-100 border border-gray-300 text-gray-800 hover:bg-gray-200 px-5 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2"
+                    >
+                      Save and Send
+                      <span className="text-xs text-gray-500">▼</span>
+                    </button>
 
-                  {dropdownOpen && (
-                    <>
-                      <div className="fixed inset-0 z-[65]" onClick={() => setDropdownOpen(false)}></div>
-                      <div className="absolute bottom-full left-0 mb-1 bg-white border border-gray-200 rounded-md shadow-lg py-1 min-w-[160px] z-[70]">
-                        <button
-                          onClick={() => { setDropdownOpen(false); handleSaveQuotation('approve'); }}
-                          className="w-full text-left px-4 py-2 text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 border-b border-gray-100"
-                        >
-                          Save and Approve
-                        </button>
-                        <button
-                          onClick={() => { setDropdownOpen(false); handleSaveQuotation('submit'); }}
-                          className="w-full text-left px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                        >
-                          Save and Submit
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </div>
+                    {dropdownOpen && (
+                      <>
+                        <div className="fixed inset-0 z-[65]" onClick={() => setDropdownOpen(false)}></div>
+                        <div className="absolute bottom-full left-0 mb-1 bg-white border border-gray-200 rounded-md shadow-lg py-1 min-w-[160px] z-[70]">
+                          {canApprove && (
+                            <button
+                              onClick={() => { setDropdownOpen(false); handleSaveQuotation('approve'); }}
+                              className="w-full text-left px-4 py-2 text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 border-b border-gray-100"
+                            >
+                              Save and Approve
+                            </button>
+                          )}
+                          {canSubmit && (
+                            <button
+                              onClick={() => { setDropdownOpen(false); handleSaveQuotation('submit'); }}
+                              className="w-full text-left px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                            >
+                              Save and Submit
+                            </button>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
                 <button onClick={() => router.push('/dashboard/quotations')} className="bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 px-5 py-2 rounded-md text-sm font-medium transition-colors">
                   Cancel
                 </button>

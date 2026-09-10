@@ -82,7 +82,30 @@ export async function POST(req) {
     // 3. Service Layer call
     const data = await createQuotation(quotePayload);
 
-    if (body.isSubmit && data?.estimate?.estimate_id) {
+    if (body.actionType === 'approve' && data?.estimate?.estimate_id) {
+      await requirePermission(PERMISSIONS.QUOTATION.APPROVE);
+      try {
+        const { approveQuotation, submitQuotationForApproval, markQuotationAsAccepted } = require("@/lib/zoho/quotations");
+        const estId = data.estimate.estimate_id;
+        try {
+          await approveQuotation(estId);
+        } catch (e) {
+          try {
+            await submitQuotationForApproval(estId);
+            await approveQuotation(estId);
+          } catch (e2) {
+            try {
+              await markQuotationAsAccepted(estId);
+            } catch (e3) {
+              console.error("Failed to approve quotation:", e3);
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Failed to approve quotation:", err);
+      }
+    } else if (body.isSubmit && data?.estimate?.estimate_id) {
+      await requirePermission(PERMISSIONS.QUOTATION.SUBMIT);
       try {
         const { submitQuotationForApproval, markQuotationAsSent } = require("@/lib/zoho/quotations");
         try {

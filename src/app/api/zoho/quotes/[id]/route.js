@@ -97,7 +97,29 @@ export async function PUT(req, context) {
 
     const data = await updateQuotation(id, quotePayload);
 
-    if (body.isSubmit) {
+    if (body.actionType === 'approve') {
+      await requirePermission(PERMISSIONS.QUOTATION.APPROVE);
+      try {
+        const { approveQuotation, submitQuotationForApproval, markQuotationAsAccepted } = require("@/lib/zoho/quotations");
+        try {
+          await approveQuotation(id);
+        } catch (e) {
+          try {
+            await submitQuotationForApproval(id);
+            await approveQuotation(id);
+          } catch (e2) {
+            try {
+              await markQuotationAsAccepted(id);
+            } catch (e3) {
+              console.error("Failed to approve quotation:", e3);
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Failed to approve quotation:", err);
+      }
+    } else if (body.isSubmit) {
+      await requirePermission(PERMISSIONS.QUOTATION.SUBMIT);
       try {
         try {
           await submitQuotationForApproval(id);
