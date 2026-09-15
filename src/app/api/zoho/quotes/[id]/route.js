@@ -121,10 +121,31 @@ export async function PUT(req, context) {
     } else if (body.isSubmit) {
       await requirePermission(PERMISSIONS.QUOTATION.SUBMIT);
       try {
-        try {
-          await submitQuotationForApproval(id);
-        } catch(e) {
-          await markQuotationAsSent(id);
+        const { submitQuotationForApproval, markQuotationAsSent, getQuotationById } = require("@/lib/zoho/quotations");
+        let currentStatus = data?.estimate?.status;
+        if (!currentStatus) {
+          try {
+            const fetched = await getQuotationById(id);
+            currentStatus = fetched?.status;
+          } catch(e) {}
+        }
+
+        if (currentStatus !== 'pending_approval' && currentStatus !== 'approved') {
+          try {
+            await submitQuotationForApproval(id);
+          } catch (e) {
+            const errMsg = (e.message || "").toLowerCase();
+            if (!errMsg.includes("already") && !errMsg.includes("pending") && !errMsg.includes("submitted")) {
+              try {
+                const latest = await getQuotationById(id);
+                if (latest?.status !== 'pending_approval' && latest?.status !== 'approved') {
+                  await markQuotationAsSent(id);
+                }
+              } catch(errSent) {
+                console.error("Failed to mark quotation as sent:", errSent);
+              }
+            }
+          }
         }
       } catch (err) {
         console.error("Failed to submit quotation:", err);

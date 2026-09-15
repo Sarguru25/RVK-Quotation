@@ -184,7 +184,7 @@ export default function NewQuotationPage() {
   });
 
   const { data: itemsData } = useQuery({
-    queryKey: ['items-list'],
+    queryKey: ['items-all'],
     queryFn: async () => {
       const res = await fetch(`/api/zoho/items?limit=5000`);
       if (!res.ok) throw new Error("Failed to fetch items");
