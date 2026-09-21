@@ -112,7 +112,55 @@ async function resolveRecordId(module, recordId) {
 }
 
 /**
- * Upload an attachment to a Zoho Books record (Estimate, Sales Order, Invoice)
+ * List all attachments/documents associated with a Zoho Books record.
+ * @param {string} module - "estimates" | "salesorders" | "invoices"
+ * @param {string} recordId - Unique ID or transaction number of the record
+ * @returns {Promise<Array<object>>} List of document objects
+ */
+export async function listAttachments(module, recordId) {
+  validateModule(module);
+  if (!recordId) throw new Error("Record ID is required.");
+
+  const realRecordId = await resolveRecordId(module, recordId);
+
+  const urlParams = new URLSearchParams({
+    organization_id: ZOHO_CONFIG.organizationId
+  });
+
+  const url = `${ZOHO_BASE_URL}/${module}/${realRecordId}?${urlParams.toString()}`;
+  const response = await executeAttachmentFetch(url, { method: "GET" });
+
+  if (!response.ok) {
+    let errorMsg = `Failed to list attachments for ${module}/${recordId}`;
+    try {
+      const data = await response.json();
+      errorMsg = data.message || errorMsg;
+    } catch {
+      // Keep default
+    }
+    throw new ZohoAttachmentError(errorMsg, response.status);
+  }
+
+  const data = await response.json();
+  const singularKey = module.endsWith("s") ? module.slice(0, -1) : module;
+  const record = data[singularKey] || data[module] || data;
+  const docs = record.documents || [];
+
+  return docs.map(doc => ({
+    document_id: String(doc.document_id || ""),
+    file_name: doc.file_name || "attachment",
+    file_size: Number(doc.file_size || 0),
+    file_size_formatted: doc.file_size_formatted || (doc.file_size ? `${(doc.file_size / (1024 * 1024)).toFixed(2)} MB` : "-"),
+    file_type: doc.file_type || (doc.file_name ? doc.file_name.split(".").pop().toLowerCase() : ""),
+    uploaded_on: doc.uploaded_on || doc.uploaded_on_date_formatted || "",
+    uploaded_by: doc.uploaded_by || "",
+    can_send_in_mail: Boolean(doc.can_send_in_mail)
+  }));
+}
+
+/**
+ * Upload an attachment to a Zoho Books record (Estimate, Sales Order, Invoice).
+ * Appends the file to the record's documents list.
  * @param {string} module - "estimates" | "salesorders" | "invoices"
  * @param {string} recordId - Unique ID or transaction number of the record
  * @param {Blob | File} file - The file object to upload
@@ -131,8 +179,20 @@ export async function uploadAttachment(module, recordId, file) {
 
   const url = `${ZOHO_BASE_URL}/${module}/${realRecordId}/attachment?${urlParams.toString()}`;
 
+  // Sanitize filename to alphanumeric, dots, hyphens, and underscores.
+  // Zoho Books rejects filenames containing spaces, parentheses, or special characters.
+  const rawName = file.name || "attachment.pdf";
+  const safeName = rawName.replace(/[^a-zA-Z0-9._-]/g, "_");
+
+  // Read buffer from incoming File/Blob stream to ensure valid in-memory payload for fetch
+  let uploadBlob = file;
+  if (typeof file.arrayBuffer === "function") {
+    const arrayBuffer = await file.arrayBuffer();
+    uploadBlob = new Blob([arrayBuffer]);
+  }
+
   const formData = new FormData();
-  formData.append("attachment", file);
+  formData.append("attachment", uploadBlob, safeName);
 
   const response = await executeAttachmentFetch(url, {
     method: "POST",
@@ -153,12 +213,38 @@ export async function uploadAttachment(module, recordId, file) {
 }
 
 /**
- * Retrieve an attachment from a Zoho Books record as a raw response stream.
+ * Upload multiple attachments sequentially to a Zoho Books record.
  * @param {string} module - "estimates" | "salesorders" | "invoices"
  * @param {string} recordId - Unique ID or transaction number of the record
+ * @param {Array<Blob | File>} files - Array of files to upload
+ * @returns {Promise<Array<object>>} Upload results
+ */
+export async function uploadMultipleAttachments(module, recordId, files) {
+  validateModule(module);
+  if (!recordId) throw new Error("Record ID is required.");
+  if (!files || !files.length) throw new Error("At least one file is required.");
+
+  const realRecordId = await resolveRecordId(module, recordId);
+  const results = [];
+
+  for (const file of files) {
+    const res = await uploadAttachment(module, realRecordId, file);
+    results.push(res);
+  }
+
+  return results;
+}
+
+/**
+ * Retrieve an attachment from a Zoho Books record as a raw response stream.
+ * If documentId is provided, retrieves that specific document.
+ * Otherwise retrieves the primary/default attachment stream.
+ * @param {string} module - "estimates" | "salesorders" | "invoices"
+ * @param {string} recordId - Unique ID or transaction number of the record
+ * @param {string|null} documentId - Optional document ID to target a specific file
  * @returns {Promise<Response>} Raw Fetch Response containing stream and headers
  */
-export async function getAttachment(module, recordId) {
+export async function getAttachment(module, recordId, documentId = null) {
   validateModule(module);
   if (!recordId) throw new Error("Record ID is required.");
 
@@ -168,14 +254,19 @@ export async function getAttachment(module, recordId) {
     organization_id: ZOHO_CONFIG.organizationId
   });
 
-  const url = `${ZOHO_BASE_URL}/${module}/${realRecordId}/attachment?${urlParams.toString()}`;
+  let url;
+  if (documentId) {
+    url = `${ZOHO_BASE_URL}/${module}/${realRecordId}/documents/${documentId}?${urlParams.toString()}`;
+  } else {
+    url = `${ZOHO_BASE_URL}/${module}/${realRecordId}/attachment?${urlParams.toString()}`;
+  }
 
   const response = await executeAttachmentFetch(url, {
     method: "GET",
   });
 
   if (!response.ok) {
-    let errorMsg = `Failed to retrieve attachment for ${module}/${recordId}`;
+    let errorMsg = `Failed to retrieve attachment for ${module}/${recordId}${documentId ? ` (doc: ${documentId})` : ""}`;
     try {
       const data = await response.json();
       errorMsg = data.message || errorMsg;
@@ -190,11 +281,14 @@ export async function getAttachment(module, recordId) {
 
 /**
  * Delete an attachment from a Zoho Books record.
+ * If documentId is provided, deletes only that specific document.
+ * Otherwise deletes using the singular /attachment endpoint.
  * @param {string} module - "estimates" | "salesorders" | "invoices"
  * @param {string} recordId - Unique ID or transaction number of the record
+ * @param {string|null} documentId - Optional document ID to target a specific file
  * @returns {Promise<object>} JSON response from Zoho Books API
  */
-export async function deleteAttachment(module, recordId) {
+export async function deleteAttachment(module, recordId, documentId = null) {
   validateModule(module);
   if (!recordId) throw new Error("Record ID is required.");
 
@@ -204,7 +298,12 @@ export async function deleteAttachment(module, recordId) {
     organization_id: ZOHO_CONFIG.organizationId
   });
 
-  const url = `${ZOHO_BASE_URL}/${module}/${realRecordId}/attachment?${urlParams.toString()}`;
+  let url;
+  if (documentId) {
+    url = `${ZOHO_BASE_URL}/${module}/${realRecordId}/documents/${documentId}?${urlParams.toString()}`;
+  } else {
+    url = `${ZOHO_BASE_URL}/${module}/${realRecordId}/attachment?${urlParams.toString()}`;
+  }
 
   const response = await executeAttachmentFetch(url, {
     method: "DELETE",
@@ -224,26 +323,27 @@ export async function deleteAttachment(module, recordId) {
 }
 
 /**
- * Replace/Update an attachment on a Zoho Books record.
- * Automatically deletes the existing attachment first (if any) and uploads the new one.
+ * Replace/Update a specific document or default attachment on a Zoho Books record.
+ * Deletes the specified document (if documentId provided) and uploads the new file.
  * @param {string} module - "estimates" | "salesorders" | "invoices"
  * @param {string} recordId - Unique ID or transaction number of the record
+ * @param {string|null} documentId - Specific document ID to replace
  * @param {Blob | File} file - The new file object to upload
  * @returns {Promise<object>} JSON response from Zoho Books API
  */
-export async function replaceAttachment(module, recordId, file) {
+export async function replaceAttachment(module, recordId, documentId, file) {
   validateModule(module);
   if (!recordId) throw new Error("Record ID is required.");
   if (!file) throw new Error("File is required for replace operation.");
 
   const realRecordId = await resolveRecordId(module, recordId);
 
-  // Attempt to delete existing attachment first
+  // Attempt to delete specific or existing attachment first
   try {
-    await deleteAttachment(module, realRecordId);
-    console.log(`[ZOHO ATTACHMENTS] Successfully removed previous attachment for ${module}/${realRecordId}`);
+    await deleteAttachment(module, realRecordId, documentId);
+    console.log(`[ZOHO ATTACHMENTS] Successfully removed previous document (${documentId || "default"}) for ${module}/${realRecordId}`);
   } catch (error) {
-    console.warn(`[ZOHO ATTACHMENTS] Pre-replace delete step warning (likely no existing attachment):`, error.message);
+    console.warn(`[ZOHO ATTACHMENTS] Pre-replace delete step warning:`, error.message);
   }
 
   // Upload the new attachment
