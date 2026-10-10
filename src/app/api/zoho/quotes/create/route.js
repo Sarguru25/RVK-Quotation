@@ -25,17 +25,47 @@ export async function POST(req) {
       }
     }
 
-    const line_items = body.line_items.map((item) => {
+    const rawLineItems = Array.isArray(body.line_items) ? body.line_items : [];
+    const validItems = rawLineItems.filter((item) => {
+      const hasId = Boolean(item.item_id && String(item.item_id).trim());
+      const hasName = Boolean(item.name && String(item.name).trim());
+      const hasDesc = Boolean(item.description && String(item.description).trim());
+      const hasRate = Number(item.rate) > 0;
+      return hasId || hasName || hasDesc || hasRate;
+    });
+
+    if (validItems.length === 0) {
+      return NextResponse.json(
+        { success: false, error: "Select an item or give a description to create the invoice." },
+        { status: 400 }
+      );
+    }
+
+    const line_items = validItems.map((item) => {
       const payloadItem = {
-        name: item.name,
-        quantity: Number(item.quantity),
-        rate: Number(item.rate),
+        name: item.name || "Item",
+        quantity: Number(item.quantity) || 1,
+        rate: Number(item.rate) || 0,
       };
       if (item.item_id) payloadItem.item_id = item.item_id;
-      if (item.description) payloadItem.description = item.description;
+      if (item.description && String(item.description).trim()) {
+        payloadItem.description = String(item.description).trim();
+      } else if (!item.item_id && item.name && String(item.name).trim()) {
+        payloadItem.description = String(item.name).trim();
+      }
       payloadItem.tax_id = item.tax_id || "";
       return payloadItem;
     });
+
+    for (let i = 0; i < line_items.length; i++) {
+      const it = line_items[i];
+      if (!it.item_id && !it.description) {
+        return NextResponse.json(
+          { success: false, error: `Row #${i + 1}: Select an item or give a description to create the invoice.` },
+          { status: 400 }
+        );
+      }
+    }
 
     const quotePayload = {
       customer_id: customerId,
@@ -149,9 +179,10 @@ export async function POST(req) {
 
     console.error("[API] POST Quote Error:", error.message || error);
 
+    const status = (typeof error.status === 'number' && error.status >= 400 && error.status < 600) ? error.status : 400;
     return NextResponse.json(
       { success: false, error: error.message || "Failed to create quotation" },
-      { status: error.status || 500 }
+      { status }
     );
   }
 }

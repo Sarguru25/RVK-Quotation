@@ -145,7 +145,7 @@ export default function NewQuotationPage() {
 
   const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState(null);
+
   function showToast(message, type = "success") {
     if (type === "error") {
       toast.error(message);
@@ -310,11 +310,6 @@ This is a computer-generated document and hence no signature is required.
     
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
-  function showToast(message, type = "success") {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 3500);
-  }
-
 
 
 
@@ -426,7 +421,30 @@ This is a computer-generated document and hence no signature is required.
   const total = afterDiscount + taxTotal + shippingCharges + adjustment;
 
   async function handleSaveQuotation(actionType = 'draft') {
-    if (!form.customer_id) { showToast("Please select a customer", "error"); return; }
+    if (!form.customer_id) {
+      showToast("Please select a customer before saving the quotation.", "error");
+      return;
+    }
+
+    const rawItems = form.line_items || [];
+    if (rawItems.length === 0) {
+      showToast("Quotation must contain at least one line item.", "error");
+      return;
+    }
+
+    // Validate that line items are not empty
+    for (let i = 0; i < rawItems.length; i++) {
+      const it = rawItems[i];
+      const hasId = Boolean(it.item_id && String(it.item_id).trim());
+      const hasName = Boolean(it.name && String(it.name).trim());
+      const hasDesc = Boolean(it.description && String(it.description).trim());
+
+      if (!hasId && !hasDesc && !hasName) {
+        showToast(`Item #${i + 1}: Select an item or give a description to create the invoice/quotation.`, "error");
+        return;
+      }
+    }
+
     try {
       setSaving(true);
       const url = editingId ? `/api/zoho/quotes/${editingId}` : "/api/zoho/quotes/create";
@@ -439,9 +457,10 @@ This is a computer-generated document and hence no signature is required.
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...form, actionType, isSubmit }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok || data.success === false) {
-        showToast(data.error || "Failed to save", "error");
+        const errorMsg = data.error || (typeof data === "string" ? data : "Failed to save quotation");
+        showToast(errorMsg, "error");
         return;
       }
       showToast(`Quotation ${editingId ? "updated" : "created"} successfully!`);
@@ -452,7 +471,7 @@ This is a computer-generated document and hence no signature is required.
       router.push("/dashboard/quotations");
     } catch (err) {
       console.error(err);
-      showToast("Something went wrong", "error");
+      showToast("Something went wrong while saving the quotation", "error");
     } finally {
       setSaving(false);
     }
@@ -462,11 +481,16 @@ This is a computer-generated document and hence no signature is required.
     if (!window.confirm("Delete this quotation? This cannot be undone.")) return;
     try {
       const res = await fetch(`/api/zoho/quotes/${id}`, { method: "DELETE" });
-      const data = await res.json();
-      if (!res.ok || data.success === false) { showToast(data.error || "Failed to delete", "error"); return; }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.success === false) {
+        showToast(data.error || "Failed to delete", "error");
+        return;
+      }
       showToast("Quotation deleted successfully");
       fetchQuotes();
-    } catch { showToast("Something went wrong", "error"); }
+    } catch (err) {
+      showToast("Failed to delete quotation", "error");
+    }
   }
 
   return (
@@ -852,6 +876,7 @@ This is a computer-generated document and hence no signature is required.
                 PDF Template: <span className="font-medium text-gray-800">Truflow Final</span> <a href="#" className="text-blue-600 hover:underline">Change</a>
               </div>
             </div>
+
           </div>
         </div>
   );

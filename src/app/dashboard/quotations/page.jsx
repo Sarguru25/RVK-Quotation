@@ -124,7 +124,7 @@ export default function QuotationsPage() {
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState(null);
+
   function showToast(message, type = "success") {
     if (type === "error") {
       toast.error(message);
@@ -269,11 +269,6 @@ This is a computer-generated document; therefore, no signature is required.
 
   const [form, setForm] = useState(initialFormState);
   const [dropdownOpen, setDropdownOpen] = useState(false);
-
-  function showToast(message, type = "success") {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 3500);
-  }
 
   // Helper to get tax percentage from tax_id
   function getTaxPercentage(taxId) {
