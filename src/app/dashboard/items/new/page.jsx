@@ -4,44 +4,58 @@ import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { X, Image as ImageIcon, HelpCircle } from "lucide-react";
 import toast from "react-hot-toast";
+import AccountSelectDropdown from "./AccountSelectDropdown";
+import {
+  DEFAULT_SALES_ACCOUNT_ID,
+  DEFAULT_PURCHASE_ACCOUNT_ID,
+  FALLBACK_COGS_ACCOUNTS,
+  FALLBACK_SALES_ACCOUNTS,
+  FALLBACK_JOB_NUMBERS,
+  FALLBACK_MARKET_SEGMENTS,
+} from "./accountConstants";
 
 export default function NewItemPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const editId = searchParams.get("edit");
 
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(Boolean(editId));
   const [saving, setSaving] = useState(false);
   const [taxes, setTaxes] = useState([]);
   const [vendors, setVendors] = useState([]);
+  const [salesAccounts, setSalesAccounts] = useState(FALLBACK_SALES_ACCOUNTS);
+  const [cogsAccounts, setCogsAccounts] = useState(FALLBACK_COGS_ACCOUNTS);
+  const [expenseAccounts, setExpenseAccounts] = useState([]);
+  const [jobNumberOptions, setJobNumberOptions] = useState(FALLBACK_JOB_NUMBERS);
+  const [marketSegmentOptions, setMarketSegmentOptions] = useState(FALLBACK_MARKET_SEGMENTS);
 
   const initialFormState = {
     name: "",
     product_type: "goods",
     unit: "",
     sku: "",
-    
+
     // Sales Info
     is_sales: true,
     rate: "",
-    account_id: "",
+    account_id: DEFAULT_SALES_ACCOUNT_ID,
     description: "",
     tax_id: "",
-    
+
     // Purchase Info
     is_purchase: true,
     purchase_rate: "",
-    purchase_account_id: "",
+    purchase_account_id: DEFAULT_PURCHASE_ACCOUNT_ID,
     purchase_description: "",
     purchase_tax_id: "",
     vendor_id: "",
-    
+
     // Inventory
     track_inventory: false,
-    
-    // Tags
+
+    // Associated Tags
     job_number: "",
-    market_segment: ""
+    market_segment: "",
   };
 
   const [form, setForm] = useState(initialFormState);
@@ -54,9 +68,11 @@ export default function NewItemPage() {
   useEffect(() => {
     async function fetchData() {
       try {
-        const [taxRes, vendorsRes] = await Promise.all([
+        const [taxRes, vendorsRes, accountsRes, tagsRes] = await Promise.all([
           fetch("/api/zoho/taxes").catch(() => null),
-          fetch("/api/zoho/customers?limit=100").catch(() => null) // vendors might be here
+          fetch("/api/zoho/customers?limit=100").catch(() => null),
+          fetch("/api/zoho/accounts").catch(() => null),
+          fetch("/api/zoho/tags").catch(() => null),
         ]);
         if (taxRes && taxRes.ok) {
           const taxData = await taxRes.json();
@@ -64,8 +80,36 @@ export default function NewItemPage() {
         }
         if (vendorsRes && vendorsRes.ok) {
           const vendData = await vendorsRes.json();
-          // Assuming vendors are stored in same DB or we just use customers list
           setVendors(vendData.data || []);
+        }
+        if (accountsRes && accountsRes.ok) {
+          const accData = await accountsRes.json();
+          if (accData?.data) {
+            if (accData.data.salesAccounts?.length > 0) {
+              setSalesAccounts(accData.data.salesAccounts);
+            }
+            if (accData.data.cogsAccounts?.length > 0) {
+              setCogsAccounts(accData.data.cogsAccounts);
+            }
+            if (accData.data.expenseAccounts?.length > 0) {
+              setExpenseAccounts(accData.data.expenseAccounts);
+            }
+          }
+        }
+        if (tagsRes && tagsRes.ok) {
+          const tagsData = await tagsRes.json();
+          if (tagsData?.data) {
+            if (tagsData.data.jobNumberTag?.tag_options?.length > 0) {
+              setJobNumberOptions(
+                tagsData.data.jobNumberTag.tag_options.map((o) => o.tag_option_name)
+              );
+            }
+            if (tagsData.data.marketSegmentTag?.tag_options?.length > 0) {
+              setMarketSegmentOptions(
+                tagsData.data.marketSegmentTag.tag_options.map((o) => o.tag_option_name)
+              );
+            }
+          }
         }
       } catch (error) {
         console.error("Error fetching dependencies:", error);
@@ -75,34 +119,68 @@ export default function NewItemPage() {
   }, []);
 
   useEffect(() => {
+    let ignore = false;
     if (editId) {
-      setLoading(true);
       fetch(`/api/zoho/items/${editId}`)
         .then((res) => res.json())
         .then((data) => {
-          if (data) {
+          if (ignore) return;
+          const itemData = data?.rawZohoData || data?.item || data;
+          if (itemData) {
+            // Check tags from existing item if available
+            let itemJobNumber = "";
+            let itemMarketSegment = "";
+            if (Array.isArray(itemData.tags)) {
+              const jobTag = itemData.tags.find((t) => t.tag_name === "Job Number");
+              if (jobTag) itemJobNumber = jobTag.tag_option_name || "";
+              const marketTag = itemData.tags.find((t) => t.tag_name === "Market Segment");
+              if (marketTag) itemMarketSegment = marketTag.tag_option_name || "";
+            }
+
             setForm((prev) => ({
               ...prev,
-              name: data.name || "",
-              product_type: data.product_type || "goods",
-              unit: data.unit || "",
-              sku: data.sku || "",
-              rate: data.rate || "",
-              description: data.description || "",
-              tax_id: data.tax_id || "",
-              account_id: data.account_id || "",
-              purchase_rate: data.purchase_rate || "",
-              purchase_description: data.purchase_description || "",
-              purchase_tax_id: data.purchase_tax_id || "",
-              purchase_account_id: data.purchase_account_id || "",
-              vendor_id: data.vendor_id || "",
-              track_inventory: data.is_combo_product || false, // approximated
+              name: itemData.name || "",
+              product_type: itemData.product_type || "goods",
+              unit: itemData.unit || "",
+              sku: itemData.sku || "",
+              is_sales:
+                itemData.can_be_sold !== undefined
+                  ? Boolean(itemData.can_be_sold)
+                  : itemData.item_type !== "purchases",
+              rate: itemData.rate !== undefined && itemData.rate !== null ? itemData.rate : "",
+              description: itemData.description || "",
+              tax_id: itemData.tax_id || "",
+              account_id: itemData.account_id || DEFAULT_SALES_ACCOUNT_ID,
+              is_purchase:
+                itemData.can_be_purchased !== undefined
+                  ? Boolean(itemData.can_be_purchased)
+                  : itemData.item_type === "sales_and_purchases" ||
+                    itemData.item_type === "purchases" ||
+                    Boolean(itemData.purchase_rate || itemData.purchase_account_id),
+              purchase_rate:
+                itemData.purchase_rate !== undefined && itemData.purchase_rate !== null
+                  ? itemData.purchase_rate
+                  : "",
+              purchase_description: itemData.purchase_description || "",
+              purchase_tax_id: itemData.purchase_tax_id || "",
+              purchase_account_id: itemData.purchase_account_id || DEFAULT_PURCHASE_ACCOUNT_ID,
+              vendor_id: itemData.vendor_id || "",
+              track_inventory: itemData.track_inventory || itemData.is_combo_product || false,
+              job_number: itemJobNumber,
+              market_segment: itemMarketSegment,
             }));
           }
         })
-        .catch(() => toast.error("Failed to load item details"))
-        .finally(() => setLoading(false));
+        .catch(() => {
+          if (!ignore) toast.error("Failed to load item details");
+        })
+        .finally(() => {
+          if (!ignore) setLoading(false);
+        });
     }
+    return () => {
+      ignore = true;
+    };
   }, [editId]);
 
   function handleChange(e) {
@@ -122,16 +200,8 @@ export default function NewItemPage() {
       setSaving(true);
       const url = editId ? `/api/zoho/items/${editId}` : "/api/zoho/items/create";
       const method = editId ? "PUT" : "POST";
-      
+
       const payload = { ...form };
-      // Process custom fields for Job Number and Market Segment if API supports it
-      payload.custom_fields = [];
-      if (form.job_number) {
-        payload.custom_fields.push({ label: "Job Number", value: form.job_number });
-      }
-      if (form.market_segment) {
-        payload.custom_fields.push({ label: "Market Segment", value: form.market_segment });
-      }
 
       const res = await fetch(url, {
         method,
@@ -167,7 +237,7 @@ export default function NewItemPage() {
   return (
     <div className="bg-gray-50 min-h-screen py-8">
       <div className="max-w-[1000px] mx-auto bg-white rounded-lg shadow-sm border border-gray-200">
-        
+
         {/* Header */}
         <div className="flex justify-between items-center px-6 py-4 border-b border-gray-200">
           <h2 className="text-xl font-semibold text-gray-800">
@@ -179,13 +249,13 @@ export default function NewItemPage() {
         </div>
 
         <div className="p-8">
-          
+
           {/* Top Section */}
           <div className="flex flex-col lg:flex-row gap-10 mb-10">
-            
+
             {/* Left Column (Fields) */}
             <div className="flex-1 space-y-6">
-              
+
               <div className="grid grid-cols-[120px_1fr] items-center">
                 <label className="text-sm text-red-500 flex items-center gap-1">
                   Name*
@@ -268,7 +338,7 @@ export default function NewItemPage() {
               <input type="checkbox" name="is_sales" checked={form.is_sales} onChange={handleChange} className="w-4 h-4 rounded text-blue-600" />
               <span className="text-base font-medium text-gray-800">Sales Information</span>
             </label>
-            
+
             {form.is_sales && (
               <div className="grid grid-cols-2 gap-x-12 gap-y-6 pl-6">
                 <div>
@@ -281,9 +351,12 @@ export default function NewItemPage() {
 
                 <div>
                   <label className="block text-sm text-red-500 mb-1.5">Account*</label>
-                  <select name="account_id" value={form.account_id} onChange={handleChange} className="w-full border border-gray-300 rounded px-3 py-2 text-sm bg-white focus:border-blue-500 outline-none">
-                    <option value="">[ 40-001 ] Sales</option>
-                  </select>
+                  <AccountSelectDropdown
+                    value={form.account_id}
+                    onChange={(id) => setForm((prev) => ({ ...prev, account_id: id }))}
+                    groups={[{ label: "Income", accounts: salesAccounts }]}
+                    placeholder="[ 40-001 ] Sales"
+                  />
                 </div>
 
                 <div>
@@ -327,9 +400,15 @@ export default function NewItemPage() {
 
                 <div>
                   <label className="block text-sm text-red-500 mb-1.5">Account*</label>
-                  <select name="purchase_account_id" value={form.purchase_account_id} onChange={handleChange} className="w-full border border-gray-300 rounded px-3 py-2 text-sm bg-white focus:border-blue-500 outline-none">
-                    <option value="">[ 50-001 ] Direct Materials</option>
-                  </select>
+                  <AccountSelectDropdown
+                    value={form.purchase_account_id}
+                    onChange={(id) => setForm((prev) => ({ ...prev, purchase_account_id: id }))}
+                    groups={[
+                      { label: "Cost Of Goods Sold", accounts: cogsAccounts },
+                      { label: "Expense", accounts: expenseAccounts },
+                    ]}
+                    placeholder="[ 50-001 ] Direct Materials"
+                  />
                 </div>
 
                 <div>
@@ -370,7 +449,7 @@ export default function NewItemPage() {
               <input type="checkbox" name="track_inventory" checked={form.track_inventory} onChange={handleChange} className="w-4 h-4 rounded text-blue-600" />
               <span className="text-sm font-medium text-gray-800 flex items-center gap-1">Track Inventory for this item <HelpCircle size={14} className="text-gray-400" /></span>
             </label>
-            <p className="text-xs text-gray-500 pl-6">You cannot enable/disable inventory tracking once you've created transactions for this item</p>
+            <p className="text-xs text-gray-500 pl-6">You cannot enable/disable inventory tracking once you&apos;ve created transactions for this item</p>
           </div>
 
           <hr className="border-gray-200 mb-8" />
@@ -382,27 +461,23 @@ export default function NewItemPage() {
               <div>
                 <label className="block text-sm text-gray-700 mb-1.5">Job Number</label>
                 <select name="job_number" value={form.job_number} onChange={handleChange} className="w-full border border-gray-300 rounded px-3 py-2 text-sm bg-white focus:border-blue-500 outline-none">
-                  <option value=""></option>
+                  <option value="">Select Job Number</option>
+                  {jobNumberOptions.map((opt) => (
+                    <option key={opt} value={opt}>
+                      {opt}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div>
                 <label className="block text-sm text-gray-700 mb-1.5">Market Segment</label>
                 <select name="market_segment" value={form.market_segment} onChange={handleChange} className="w-full border border-gray-300 rounded px-3 py-2 text-sm bg-white focus:border-blue-500 outline-none">
-                  <option value=""></option>
-                  <option value="Oil & Gas">Oil & Gas</option>
-                  <option value="Marine & Offshore">Marine & Offshore</option>
-                  <option value="Water & Waste Water Treatment">Water & Waste Water Treatment</option>
-                  <option value="General Industry">General Industry</option>
-                  <option value="HVAC">HVAC</option>
-                  <option value="Chemical & Petrochemical">Chemical & Petrochemical</option>
-                  <option value="Pharmaceutical">Pharmaceutical</option>
-                  <option value="Mining and Cement / Steel">Mining and Cement / Steel</option>
-                  <option value="Energy">Energy</option>
-                  <option value="Fire Fighting">Fire Fighting</option>
-                  <option value="Food & Pharma">Food & Pharma</option>
-                  <option value="Paper / Pulp / Sugar">Paper / Pulp / Sugar</option>
-                  <option value="Building Solutions">Building Solutions</option>
-                  <option value="Textile">Textile</option>
+                  <option value="">Select Market Segment</option>
+                  {marketSegmentOptions.map((opt) => (
+                    <option key={opt} value={opt}>
+                      {opt}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
