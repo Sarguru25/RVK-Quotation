@@ -4,6 +4,8 @@ import { PERMISSIONS } from "@/lib/rbac/permissions";
 import { getCustomers as getCustomersFromDB } from "@/lib/db-queries/getCustomers";
 import { createCustomer } from "@/lib/zoho/customers";
 import { syncCustomers } from "@/lib/zoho-sync/syncCustomers";
+import dbConnect from "@/lib/db";
+import Tax from "@/models/Tax";
 
 export async function GET(req) {
   try {
@@ -32,6 +34,34 @@ export async function POST(req) {
     
     const body = await req.json();
 
+    // Resolve tax_id if Mongo ObjectId was sent
+    let taxId = body.tax_id || undefined;
+    if (taxId && /^[0-9a-fA-F]{24}$/.test(taxId)) {
+      await dbConnect();
+      const taxDoc = await Tax.findById(taxId).lean();
+      if (taxDoc?.zoho_tax_id) {
+        taxId = taxDoc.zoho_tax_id;
+      }
+    }
+
+    // Process reporting tags
+    let tags = [];
+    if (Array.isArray(body.tags) && body.tags.length > 0) {
+      tags = body.tags.filter(t => t && t.tag_id && t.tag_option_id);
+    }
+    if (body.job_number_tag_option_id && !tags.some(t => t.tag_id === "2315070000000000333")) {
+      tags.push({
+        tag_id: body.job_number_tag_id || "2315070000000000333",
+        tag_option_id: body.job_number_tag_option_id,
+      });
+    }
+    if (body.market_segment_tag_option_id && !tags.some(t => t.tag_id === "2315070000000000335")) {
+      tags.push({
+        tag_id: body.market_segment_tag_id || "2315070000000000335",
+        tag_option_id: body.market_segment_tag_option_id,
+      });
+    }
+
     const customerPayload = {
       contact_name: body.contact_name,
       company_name: body.company_name,
@@ -51,7 +81,7 @@ export async function POST(req) {
       is_portal_enabled: body.enable_portal || false,
       billing_address: body.billing_address,
       shipping_address: body.shipping_address,
-      tax_id: body.tax_id || undefined,
+      tax_id: taxId || undefined,
       company_id: body.company_id || undefined,
       contact_persons: (body.contact_persons || []).filter(cp => cp.email || cp.first_name || cp.last_name),
       custom_fields: [
@@ -61,6 +91,10 @@ export async function POST(req) {
         }
       ]
     };
+
+    if (tags.length > 0) {
+      customerPayload.tags = tags;
+    }
 
     const data = await createCustomer(customerPayload);
 

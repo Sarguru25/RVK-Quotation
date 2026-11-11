@@ -4,12 +4,44 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ChevronDown, ArrowLeft, Building2, User, Info, Check, AlertCircle } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { COUNTRIES, getStatesForCountry } from "@/lib/data/countriesAndStates";
 
 export default function NewCustomerPage() {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
   const [activeTab, setActiveTab] = useState("address");
+  const [customBillingState, setCustomBillingState] = useState(false);
+  const [customShippingState, setCustomShippingState] = useState(false);
+
+  // Fetch Taxes
+  const { data: taxesData } = useQuery({
+    queryKey: ['taxes-list'],
+    queryFn: async () => {
+      const res = await fetch(`/api/zoho/taxes?limit=100`);
+      if (!res.ok) throw new Error("Failed to fetch taxes");
+      const json = await res.json();
+      return json.data ? json.data : json;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+  const taxes = taxesData || [];
+
+  // Fetch Reporting Tags
+  const { data: tagsData } = useQuery({
+    queryKey: ['reporting-tags'],
+    queryFn: async () => {
+      const res = await fetch('/api/zoho/tags');
+      if (!res.ok) throw new Error("Failed to fetch tags");
+      const json = await res.json();
+      return json.data || null;
+    },
+    staleTime: 10 * 60 * 1000,
+  });
+
+  const jobNumberTag = tagsData?.jobNumberTag || null;
+  const marketSegmentTag = tagsData?.marketSegmentTag || null;
 
   const [form, setForm] = useState({
     customer_sub_type: "business",
@@ -29,6 +61,8 @@ export default function NewCustomerPage() {
     remarks: "",
     tax_id: "",
     company_id: "",
+    job_number_tag_option_id: "",
+    market_segment_tag_option_id: "",
     contact_persons: [{
         salutation: "",
         first_name: "",
@@ -63,6 +97,9 @@ export default function NewCustomerPage() {
 
   const [copyBilling, setCopyBilling] = useState(false);
 
+  const billingStates = getStatesForCountry(form.billing_address.country);
+  const shippingStates = getStatesForCountry(form.shipping_address.country);
+
   function showToast(message, type = "success") {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3500);
@@ -85,6 +122,37 @@ export default function NewCustomerPage() {
       });
     } else {
       setForm((prev) => ({ ...prev, [name]: val }));
+    }
+  }
+
+  function handleCountryChange(parent, newCountry) {
+    const states = getStatesForCountry(newCountry);
+    setForm((prev) => {
+      const defaultState = (newCountry === "Singapore" && !prev[parent].state)
+        ? "Singapore"
+        : (states.includes(prev[parent].state) ? prev[parent].state : "");
+
+      const newForm = {
+        ...prev,
+        [parent]: {
+          ...prev[parent],
+          country: newCountry,
+          state: defaultState,
+        }
+      };
+
+      if (copyBilling && parent === "billing_address") {
+        newForm.shipping_address = { ...newForm.billing_address };
+      }
+
+      return newForm;
+    });
+
+    if (parent === "billing_address") {
+      setCustomBillingState(false);
+      if (copyBilling) setCustomShippingState(false);
+    } else {
+      setCustomShippingState(false);
     }
   }
 
@@ -118,6 +186,7 @@ export default function NewCustomerPage() {
         ...prev,
         shipping_address: { ...prev.billing_address }
       }));
+      setCustomShippingState(customBillingState);
     }
   }
 
@@ -130,10 +199,30 @@ export default function NewCustomerPage() {
 
     try {
       setSaving(true);
+
+      const tags = [];
+      if (form.job_number_tag_option_id) {
+        tags.push({
+          tag_id: jobNumberTag?.tag_id || "2315070000000000333",
+          tag_option_id: form.job_number_tag_option_id,
+        });
+      }
+      if (form.market_segment_tag_option_id) {
+        tags.push({
+          tag_id: marketSegmentTag?.tag_id || "2315070000000000335",
+          tag_option_id: form.market_segment_tag_option_id,
+        });
+      }
+
+      const payload = {
+        ...form,
+        tags,
+      };
+
       const res = await fetch("/api/zoho/customers", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       
@@ -428,11 +517,19 @@ export default function NewCustomerPage() {
                       <div>
                         <label className="block text-sm text-gray-600 mb-1.5">Country/Region</label>
                         <div className="relative">
-                          <select name="billing_address.country" value={form.billing_address.country} onChange={handleChange} className="w-full appearance-none bg-white border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:border-blue-500 transition-colors">
-                            <option value="">Select</option>
-                            <option value="India">India</option>
-                            <option value="USA">USA</option>
-                            <option value="UK">UK</option>
+                          <select
+                            name="billing_address.country"
+                            value={form.billing_address.country}
+                            onChange={(e) => handleCountryChange("billing_address", e.target.value)}
+                            className="w-full appearance-none bg-white border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:border-blue-500 transition-colors"
+                          >
+                            <option value="">Select a Country</option>
+                            {COUNTRIES.map((c) => (
+                              <option key={c} value={c}>{c}</option>
+                            ))}
+                            {form.billing_address.country && !COUNTRIES.includes(form.billing_address.country) && (
+                              <option value={form.billing_address.country}>{form.billing_address.country}</option>
+                            )}
                           </select>
                           <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                         </div>
@@ -447,17 +544,65 @@ export default function NewCustomerPage() {
                         <input type="text" name="billing_address.city" value={form.billing_address.city} onChange={handleChange} className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:border-blue-500 transition-colors" />
                       </div>
                       <div>
-                        <label className="block text-sm text-gray-600 mb-1.5">State</label>
-                        <div className="relative">
-                          <select name="billing_address.state" value={form.billing_address.state} onChange={handleChange} className="w-full appearance-none bg-white border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:border-blue-500 transition-colors">
-                            <option value="">Select or type to add</option>
-                            <option value="Tamil Nadu">Tamil Nadu</option>
-                            <option value="Karnataka">Karnataka</option>
-                            <option value="Maharashtra">Maharashtra</option>
-                            <option value="Delhi">Delhi</option>
-                          </select>
-                          <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="block text-sm text-gray-600">State</label>
+                          {customBillingState ? (
+                            <button
+                              type="button"
+                              onClick={() => setCustomBillingState(false)}
+                              className="text-xs text-blue-600 hover:underline"
+                            >
+                              Choose from list
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setCustomBillingState(true)}
+                              className="text-xs text-gray-400 hover:text-blue-600 hover:underline"
+                            >
+                              Enter manually
+                            </button>
+                          )}
                         </div>
+                        {customBillingState ? (
+                          <input
+                            type="text"
+                            name="billing_address.state"
+                            value={form.billing_address.state}
+                            onChange={handleChange}
+                            placeholder="Type state name"
+                            className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:border-blue-500 transition-colors"
+                          />
+                        ) : (
+                          <div className="relative">
+                            <select
+                              name="billing_address.state"
+                              value={form.billing_address.state}
+                              onChange={(e) => {
+                                if (e.target.value === "__custom__") {
+                                  setCustomBillingState(true);
+                                  setForm((prev) => ({
+                                    ...prev,
+                                    billing_address: { ...prev.billing_address, state: "" }
+                                  }));
+                                } else {
+                                  handleChange(e);
+                                }
+                              }}
+                              className="w-full appearance-none bg-white border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:border-blue-500 transition-colors"
+                            >
+                              <option value="">{billingStates.length > 0 ? "Select a State" : (form.billing_address.country ? "Select a State" : "Select a country first")}</option>
+                              {billingStates.map((st) => (
+                                <option key={st} value={st}>{st}</option>
+                              ))}
+                              {form.billing_address.state && !billingStates.includes(form.billing_address.state) && (
+                                <option value={form.billing_address.state}>{form.billing_address.state}</option>
+                              )}
+                              <option value="__custom__">+ Enter other state...</option>
+                            </select>
+                            <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                          </div>
+                        )}
                       </div>
                       <div>
                         <label className="block text-sm text-gray-600 mb-1.5">Pin Code</label>
@@ -496,11 +641,19 @@ export default function NewCustomerPage() {
                       <div>
                         <label className="block text-sm text-gray-600 mb-1.5">Country/Region</label>
                         <div className="relative">
-                          <select name="shipping_address.country" value={form.shipping_address.country} onChange={handleChange} className="w-full appearance-none bg-white border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:border-blue-500 transition-colors">
-                            <option value="">Select</option>
-                            <option value="India">India</option>
-                            <option value="USA">USA</option>
-                            <option value="UK">UK</option>
+                          <select
+                            name="shipping_address.country"
+                            value={form.shipping_address.country}
+                            onChange={(e) => handleCountryChange("shipping_address", e.target.value)}
+                            className="w-full appearance-none bg-white border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:border-blue-500 transition-colors"
+                          >
+                            <option value="">Select a Country</option>
+                            {COUNTRIES.map((c) => (
+                              <option key={c} value={c}>{c}</option>
+                            ))}
+                            {form.shipping_address.country && !COUNTRIES.includes(form.shipping_address.country) && (
+                              <option value={form.shipping_address.country}>{form.shipping_address.country}</option>
+                            )}
                           </select>
                           <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                         </div>
@@ -515,17 +668,65 @@ export default function NewCustomerPage() {
                         <input type="text" name="shipping_address.city" value={form.shipping_address.city} onChange={handleChange} className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:border-blue-500 transition-colors" />
                       </div>
                       <div>
-                        <label className="block text-sm text-gray-600 mb-1.5">State</label>
-                        <div className="relative">
-                          <select name="shipping_address.state" value={form.shipping_address.state} onChange={handleChange} className="w-full appearance-none bg-white border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:border-blue-500 transition-colors">
-                            <option value="">Select or type to add</option>
-                            <option value="Tamil Nadu">Tamil Nadu</option>
-                            <option value="Karnataka">Karnataka</option>
-                            <option value="Maharashtra">Maharashtra</option>
-                            <option value="Delhi">Delhi</option>
-                          </select>
-                          <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="block text-sm text-gray-600">State</label>
+                          {customShippingState ? (
+                            <button
+                              type="button"
+                              onClick={() => setCustomShippingState(false)}
+                              className="text-xs text-blue-600 hover:underline"
+                            >
+                              Choose from list
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setCustomShippingState(true)}
+                              className="text-xs text-gray-400 hover:text-blue-600 hover:underline"
+                            >
+                              Enter manually
+                            </button>
+                          )}
                         </div>
+                        {customShippingState ? (
+                          <input
+                            type="text"
+                            name="shipping_address.state"
+                            value={form.shipping_address.state}
+                            onChange={handleChange}
+                            placeholder="Type state name"
+                            className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:border-blue-500 transition-colors"
+                          />
+                        ) : (
+                          <div className="relative">
+                            <select
+                              name="shipping_address.state"
+                              value={form.shipping_address.state}
+                              onChange={(e) => {
+                                if (e.target.value === "__custom__") {
+                                  setCustomShippingState(true);
+                                  setForm((prev) => ({
+                                    ...prev,
+                                    shipping_address: { ...prev.shipping_address, state: "" }
+                                  }));
+                                } else {
+                                  handleChange(e);
+                                }
+                              }}
+                              className="w-full appearance-none bg-white border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:border-blue-500 transition-colors"
+                            >
+                              <option value="">{shippingStates.length > 0 ? "Select a State" : (form.shipping_address.country ? "Select a State" : "Select a country first")}</option>
+                              {shippingStates.map((st) => (
+                                <option key={st} value={st}>{st}</option>
+                              ))}
+                              {form.shipping_address.state && !shippingStates.includes(form.shipping_address.state) && (
+                                <option value={form.shipping_address.state}>{form.shipping_address.state}</option>
+                              )}
+                              <option value="__custom__">+ Enter other state...</option>
+                            </select>
+                            <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                          </div>
+                        )}
                       </div>
                       <div>
                         <label className="block text-sm text-gray-600 mb-1.5">Pin Code</label>
@@ -550,8 +751,21 @@ export default function NewCustomerPage() {
                   <div className="flex items-center">
                     <label className="w-48 text-sm font-medium text-gray-700 flex items-center gap-1">Tax Rate</label>
                     <div className="flex-1 max-w-sm relative">
-                      <select name="tax_id" value={form.tax_id} onChange={handleChange} className="w-full appearance-none bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 focus:outline-none focus:border-blue-500 transition-colors">
+                      <select
+                        name="tax_id"
+                        value={form.tax_id}
+                        onChange={handleChange}
+                        className="w-full appearance-none bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 focus:outline-none focus:border-blue-500 transition-colors"
+                      >
                         <option value="">Select a Tax</option>
+                        {taxes.map((t) => {
+                          const tid = t.zoho_tax_id || t.tax_id || t._id;
+                          return (
+                            <option key={tid} value={tid}>
+                              {t.tax_name} ({t.tax_percentage}%)
+                            </option>
+                          );
+                        })}
                       </select>
                       <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                       <p className="mt-1 text-xs text-gray-500">To associate more than one tax, you need to create a tax group in Settings.</p>
@@ -724,13 +938,49 @@ export default function NewCustomerPage() {
                 </div>
               )}
 
-              {["tags"].includes(activeTab) && (
-                <div className="py-12 flex flex-col items-center justify-center text-center">
-                  <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4">
-                    <Info size={24} className="text-gray-400" />
+              {activeTab === "tags" && (
+                <div className="max-w-2xl space-y-6">
+                  {/* Job Number */}
+                  <div className="flex items-center">
+                    <label className="w-48 text-sm font-medium text-gray-700">Job Number</label>
+                    <div className="flex-1 max-w-sm relative">
+                      <select
+                        name="job_number_tag_option_id"
+                        value={form.job_number_tag_option_id}
+                        onChange={handleChange}
+                        className="w-full appearance-none bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 focus:outline-none focus:border-blue-500 transition-colors"
+                      >
+                        <option value="">Select</option>
+                        {(jobNumberTag?.tag_options || []).map((opt) => (
+                          <option key={opt.tag_option_id} value={opt.tag_option_id}>
+                            {opt.tag_option_name}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                    </div>
                   </div>
-                  <p className="text-gray-500 font-medium">{activeTab.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())} tab content goes here</p>
-                  <p className="text-gray-400 text-sm mt-1">This section is available in the extended API.</p>
+
+                  {/* Market Segment */}
+                  <div className="flex items-center">
+                    <label className="w-48 text-sm font-medium text-gray-700">Market Segment</label>
+                    <div className="flex-1 max-w-sm relative">
+                      <select
+                        name="market_segment_tag_option_id"
+                        value={form.market_segment_tag_option_id}
+                        onChange={handleChange}
+                        className="w-full appearance-none bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 focus:outline-none focus:border-blue-500 transition-colors"
+                      >
+                        <option value="">Select</option>
+                        {(marketSegmentTag?.tag_options || []).map((opt) => (
+                          <option key={opt.tag_option_id} value={opt.tag_option_id}>
+                            {opt.tag_option_name}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                    </div>
+                  </div>
                 </div>
               )}
               

@@ -58,12 +58,31 @@ export async function PUT(req, context) {
     let zohoResponseData = body;
 
     // 2. Try to update in Zoho if it's linked
+    let tags = [];
+    if (Array.isArray(body.tags) && body.tags.length > 0) {
+      tags = body.tags.filter(t => t && t.tag_id && t.tag_option_id);
+    }
+    if (body.job_number_tag_option_id && !tags.some(t => t.tag_id === "2315070000000000333")) {
+      tags.push({
+        tag_id: body.job_number_tag_id || "2315070000000000333",
+        tag_option_id: body.job_number_tag_option_id,
+      });
+    }
+    if (body.market_segment_tag_option_id && !tags.some(t => t.tag_id === "2315070000000000335")) {
+      tags.push({
+        tag_id: body.market_segment_tag_id || "2315070000000000335",
+        tag_option_id: body.market_segment_tag_option_id,
+      });
+    }
+
     if (realZohoId) {
       try {
         const accessToken = await getZohoAccessToken();
         const customerPayload = {
           ...body,
           company_name: body.company_name || body.contact_name,
+          tax_id: body.tax_id || undefined,
+          ...(tags.length > 0 ? { tags } : {}),
         };
 
         const response = await axios.put(
@@ -97,6 +116,8 @@ export async function PUT(req, context) {
           mobile: body.mobile,
           billing_address: body.billing_address,
           shipping_address: body.shipping_address,
+          tax_id: body.tax_id || zohoResponseData?.tax_id || dbCustomer.tax_id,
+          tags: tags.length > 0 ? tags : (zohoResponseData?.tags || dbCustomer.tags || []),
           rawZohoData: { ...(dbCustomer.rawZohoData || {}), ...zohoResponseData }
         }
       },
