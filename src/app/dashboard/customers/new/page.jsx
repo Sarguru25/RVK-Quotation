@@ -1,11 +1,156 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ChevronDown, ArrowLeft, Building2, User, Info, Check, AlertCircle } from "lucide-react";
+import { ChevronDown, ArrowLeft, Building2, User, Info, Check, AlertCircle, Search } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { COUNTRIES, getStatesForCountry } from "@/lib/data/countriesAndStates";
+
+const MARKET_SEGMENT_ORDER = [
+  "Oil & Gas",
+  "Marine & Offshore",
+  "Water & Waste Water Treatment",
+  "General Industry",
+  "HVAC",
+  "Chemical & Petrochemical",
+  "Pharmaceutical",
+  "Mining",
+  "Energy",
+];
+
+const MARKET_SEGMENT_FALLBACKS = [
+  { value: "2315070000011469004", label: "Oil & Gas" },
+  { value: "2315070000006075013", label: "Marine & Offshore" },
+  { value: "2315070000006075015", label: "Water & Waste Water Treatment" },
+  { value: "2315070000006075009", label: "General Industry" },
+  { value: "2315070000011480003", label: "HVAC" },
+  { value: "2315070000006075011", label: "Chemical & Petrochemical" },
+  { value: "2315070000011480004", label: "Pharmaceutical" },
+  { value: "2315070000011480005", label: "Mining" },
+  { value: "2315070000006075017", label: "Energy" },
+];
+
+const JOB_NUMBER_FALLBACKS = [
+  { value: "2315070000000236277", label: "SGS190010" },
+  { value: "2315070000000236279", label: "SGS190011" },
+  { value: "2315070000000236281", label: "SGS190014" },
+  { value: "2315070000000236283", label: "SGS190015" },
+  { value: "2315070000000230261", label: "SGS190016" },
+  { value: "2315070000000230281", label: "SGS190017" },
+  { value: "2315070000000230279", label: "SGS190018" },
+  { value: "2315070000000253003", label: "SGS190019" },
+  { value: "2315070000001611283", label: "SGS190040" },
+];
+
+function SearchableDropdown({ options, value, onChange, placeholder = "Select" }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const dropdownRef = useRef(null);
+  const searchInputRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (isOpen && searchInputRef.current) {
+      searchInputRef.current.focus();
+    }
+  }, [isOpen]);
+
+  const selectedOption = options.find((o) => o.value === value);
+  const filtered = options.filter((o) =>
+    (o.label || "").toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div className={`relative w-full ${isOpen ? "z-30" : "z-10"}`} ref={dropdownRef}>
+      <button
+        type="button"
+        onClick={() => {
+          setIsOpen(!isOpen);
+          setSearch("");
+        }}
+        className={`w-full bg-white border ${
+          isOpen ? "border-blue-500 ring-1 ring-blue-500" : "border-gray-200"
+        } rounded-lg px-3 py-2 text-sm text-gray-800 text-left flex items-center justify-between focus:outline-none transition-colors shadow-sm`}
+      >
+        <span className={selectedOption ? "text-gray-800 font-normal truncate" : "text-gray-400"}>
+          {selectedOption ? selectedOption.label : placeholder}
+        </span>
+        <ChevronDown
+          size={14}
+          className={`text-gray-400 pointer-events-none flex-shrink-0 ml-2 transition-transform duration-200 ${
+            isOpen ? "rotate-180 text-blue-500" : ""
+          }`}
+        />
+      </button>
+
+      {isOpen && (
+        <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-xl overflow-hidden animate-in fade-in-0 duration-100">
+          <div className="p-2 border-b border-gray-100 bg-white">
+            <div className="relative flex items-center">
+              <Search size={14} className="absolute left-2.5 text-gray-400 pointer-events-none" />
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search"
+                className="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-blue-500 rounded-md text-gray-700 outline-none ring-1 ring-blue-500/20"
+              />
+            </div>
+          </div>
+          <div className="max-h-56 overflow-y-auto py-1 divide-y divide-gray-50">
+            {value && !search && (
+              <div
+                onClick={() => {
+                  onChange("");
+                  setIsOpen(false);
+                  setSearch("");
+                }}
+                className="px-3 py-1.5 text-xs text-gray-400 hover:text-red-500 hover:bg-red-50 cursor-pointer flex items-center justify-between"
+              >
+                <span>Clear selection</span>
+              </div>
+            )}
+            {filtered.length > 0 ? (
+              filtered.map((opt) => {
+                const isSelected = opt.value === value;
+                return (
+                  <div
+                    key={opt.value}
+                    onClick={() => {
+                      onChange(opt.value);
+                      setIsOpen(false);
+                      setSearch("");
+                    }}
+                    className={`px-3 py-2 text-sm cursor-pointer transition-colors ${
+                      isSelected
+                        ? "bg-blue-600 text-white font-medium"
+                        : "text-gray-800 hover:bg-blue-50 hover:text-blue-600"
+                    }`}
+                  >
+                    {opt.label}
+                  </div>
+                );
+              })
+            ) : (
+              <div className="px-3 py-3 text-xs text-gray-400 text-center">No options found</div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function NewCustomerPage() {
   const router = useRouter();
@@ -42,6 +187,23 @@ export default function NewCustomerPage() {
 
   const jobNumberTag = tagsData?.jobNumberTag || null;
   const marketSegmentTag = tagsData?.marketSegmentTag || null;
+
+  // Build sorted market segment options matching exact user sequence
+  const serverMarketOptions = marketSegmentTag?.tag_options || [];
+  const marketSegmentOptions = MARKET_SEGMENT_ORDER.map((name) => {
+    const found = serverMarketOptions.find(
+      (o) => (o.tag_option_name || "").trim().toLowerCase() === name.toLowerCase()
+    );
+    if (found) {
+      return { value: found.tag_option_id, label: found.tag_option_name };
+    }
+    const fallback = MARKET_SEGMENT_FALLBACKS.find((f) => f.label.toLowerCase() === name.toLowerCase());
+    return fallback || { value: name, label: name };
+  });
+
+  const jobNumberOptions = (jobNumberTag?.tag_options && jobNumberTag.tag_options.length > 0)
+    ? jobNumberTag.tag_options.map((o) => ({ value: o.tag_option_id, label: o.tag_option_name }))
+    : JOB_NUMBER_FALLBACKS;
 
   const [form, setForm] = useState({
     customer_sub_type: "business",
@@ -477,7 +639,7 @@ export default function NewCustomerPage() {
           </div>
 
           {/* Bottom Tabs */}
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm">
             <div className="flex items-center gap-6 border-b border-gray-200 px-8 pt-4">
               {[
                 { id: "other", label: "Other Details" },
@@ -939,46 +1101,30 @@ export default function NewCustomerPage() {
               )}
 
               {activeTab === "tags" && (
-                <div className="max-w-2xl space-y-6">
+                <div className="max-w-2xl space-y-6 min-h-[380px] pb-24">
                   {/* Job Number */}
                   <div className="flex items-center">
                     <label className="w-48 text-sm font-medium text-gray-700">Job Number</label>
-                    <div className="flex-1 max-w-sm relative">
-                      <select
-                        name="job_number_tag_option_id"
+                    <div className="flex-1 max-w-sm">
+                      <SearchableDropdown
+                        options={jobNumberOptions}
                         value={form.job_number_tag_option_id}
-                        onChange={handleChange}
-                        className="w-full appearance-none bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 focus:outline-none focus:border-blue-500 transition-colors"
-                      >
-                        <option value="">Select</option>
-                        {(jobNumberTag?.tag_options || []).map((opt) => (
-                          <option key={opt.tag_option_id} value={opt.tag_option_id}>
-                            {opt.tag_option_name}
-                          </option>
-                        ))}
-                      </select>
-                      <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                        onChange={(val) => setForm((prev) => ({ ...prev, job_number_tag_option_id: val }))}
+                        placeholder="Select"
+                      />
                     </div>
                   </div>
 
                   {/* Market Segment */}
                   <div className="flex items-center">
                     <label className="w-48 text-sm font-medium text-gray-700">Market Segment</label>
-                    <div className="flex-1 max-w-sm relative">
-                      <select
-                        name="market_segment_tag_option_id"
+                    <div className="flex-1 max-w-sm">
+                      <SearchableDropdown
+                        options={marketSegmentOptions}
                         value={form.market_segment_tag_option_id}
-                        onChange={handleChange}
-                        className="w-full appearance-none bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 focus:outline-none focus:border-blue-500 transition-colors"
-                      >
-                        <option value="">Select</option>
-                        {(marketSegmentTag?.tag_options || []).map((opt) => (
-                          <option key={opt.tag_option_id} value={opt.tag_option_id}>
-                            {opt.tag_option_name}
-                          </option>
-                        ))}
-                      </select>
-                      <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                        onChange={(val) => setForm((prev) => ({ ...prev, market_segment_tag_option_id: val }))}
+                        placeholder="Select"
+                      />
                     </div>
                   </div>
                 </div>

@@ -3,6 +3,7 @@ import axios from "axios";
 import { getZohoAccessToken } from "@/lib/zoho";
 import dbConnect from "@/lib/db";
 import Customer from "@/models/Customer";
+import Tax from "@/models/Tax";
 import { syncCustomers } from "@/lib/zoho-sync/syncCustomers";
 
 const ZOHO_ORGANIZATION_ID = process.env.ZOHO_ORGANIZATION_ID;
@@ -57,6 +58,15 @@ export async function PUT(req, context) {
     const realZohoId = dbCustomer.zoho_customer_id;
     let zohoResponseData = body;
 
+    // Resolve tax_id if Mongo ObjectId was sent
+    let taxId = body.tax_id || undefined;
+    if (taxId && /^[0-9a-fA-F]{24}$/.test(taxId)) {
+      const taxDoc = await Tax.findById(taxId).lean();
+      if (taxDoc?.zoho_tax_id) {
+        taxId = taxDoc.zoho_tax_id;
+      }
+    }
+
     // 2. Try to update in Zoho if it's linked
     let tags = [];
     if (Array.isArray(body.tags) && body.tags.length > 0) {
@@ -81,7 +91,7 @@ export async function PUT(req, context) {
         const customerPayload = {
           ...body,
           company_name: body.company_name || body.contact_name,
-          tax_id: body.tax_id || undefined,
+          tax_id: taxId || undefined,
           ...(tags.length > 0 ? { tags } : {}),
         };
 
@@ -116,7 +126,7 @@ export async function PUT(req, context) {
           mobile: body.mobile,
           billing_address: body.billing_address,
           shipping_address: body.shipping_address,
-          tax_id: body.tax_id || zohoResponseData?.tax_id || dbCustomer.tax_id,
+          tax_id: taxId || body.tax_id || zohoResponseData?.tax_id || dbCustomer.tax_id,
           tags: tags.length > 0 ? tags : (zohoResponseData?.tags || dbCustomer.tags || []),
           rawZohoData: { ...(dbCustomer.rawZohoData || {}), ...zohoResponseData }
         }
